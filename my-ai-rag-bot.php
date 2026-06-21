@@ -34,6 +34,57 @@ function render_ai_chat_widget() {
     include plugin_dir_path( __FILE__ ) . 'chat-template.php';
 }
 
+function my_ai_chat_get_ollama_url() {
+    if ( defined( 'MY_AI_CHAT_OLLAMA_URL' ) && MY_AI_CHAT_OLLAMA_URL ) {
+        return untrailingslashit( MY_AI_CHAT_OLLAMA_URL ) . '/v1/chat/completions';
+    }
+
+    if ( getenv( 'MY_AI_CHAT_OLLAMA_URL' ) ) {
+        return untrailingslashit( getenv( 'MY_AI_CHAT_OLLAMA_URL' ) ) . '/v1/chat/completions';
+    }
+
+    static $cached_url = null;
+    if ( $cached_url !== null ) {
+        return $cached_url;
+    }
+
+    $candidates = array(
+        'http://host.docker.internal:11434',
+        'http://127.0.0.1:11434',
+        'http://localhost:11434',
+    );
+
+    foreach ( $candidates as $base_url ) {
+        if ( my_ai_chat_can_ping_ollama( $base_url . '/v1/models' ) ) {
+            $cached_url = $base_url . '/v1/chat/completions';
+            return $cached_url;
+        }
+    }
+
+    $cached_url = 'http://localhost:11434/v1/chat/completions';
+    return $cached_url;
+}
+
+function my_ai_chat_can_ping_ollama( $test_url ) {
+    if ( ! function_exists( 'wp_remote_get' ) ) {
+        return false;
+    }
+
+    $response = wp_remote_get( $test_url, array(
+        'timeout'      => 2,
+        'redirection'  => 2,
+        'httpversion'  => '1.1',
+        'headers'      => array( 'Accept' => 'application/json' ),
+    ) );
+
+    if ( is_wp_error( $response ) ) {
+        return false;
+    }
+
+    $code = wp_remote_retrieve_response_code( $response );
+    return in_array( $code, array( 200, 301, 302 ), true );
+}
+
 // 3. Создаем эндпоинт для чата
 add_action( 'rest_api_init', function () {
     register_rest_route( 'aibot/v1', '/chat', array(
@@ -112,10 +163,23 @@ function handle_ai_chat_request( $request ) {
 
     $system_prompt = "Ты — полезный ассистент на сайте интернет-магазина. Ответь на вопрос пользователя, опираясь ТОЛЬКО на предоставленный ниже контекст. Если в контексте нет ответа, ответь: 'Я не нашел информации на сайте'.\n\nКОНТЕКСТ:\n" . $context;
 
-    $ai_url = 'http://localhost:11434/v1/chat/completions';
-    $api_key = 'your-key'; 
+    $ai_url = my_ai_chat_get_ollama_url();
+    $model = defined( 'MY_AI_CHAT_OLLAMA_MODEL' ) && MY_AI_CHAT_OLLAMA_MODEL ? MY_AI_CHAT_OLLAMA_MODEL : 'qwen2.5:1.5b';
+    if ( getenv( 'MY_AI_CHAT_OLLAMA_MODEL' ) ) {
+        $model = getenv( 'MY_AI_CHAT_OLLAMA_MODEL' );
+    }
 
-    $system_prompt = "Ты — полезный ассистент на сайте интернет-магазина. Ответь на вопрос пользователя, опираясь ТОЛЬКО на предоставленный ниже контекст. Если в контексте нет ответа, ответь: 'Я не нашел информации на сайте'.\n\nКОНТЕКСТ:\n" . $context;
+    $api_key = '';
+    if ( defined( 'MY_AI_CHAT_OLLAMA_API_KEY' ) && MY_AI_CHAT_OLLAMA_API_KEY ) {
+        $api_key = MY_AI_CHAT_OLLAMA_API_KEY;
+    } elseif ( getenv( 'MY_AI_CHAT_OLLAMA_API_KEY' ) ) {
+        $api_key = getenv( 'MY_AI_CHAT_OLLAMA_API_KEY' );
+    }
+
+    $headers = array( 'Content-Type: application/json' );
+    if ( $api_key ) {
+        $headers[] = 'Authorization: Bearer ' . $api_key;
+    }
 
     // Включаем правильные заголовки для потокового ответа
     header('Content-Type: text/event-stream');
@@ -124,7 +188,7 @@ function handle_ai_chat_request( $request ) {
     header('X-Accel-Buffering: no'); // Отключаем буферизацию в Nginx
 
     $body = array(
-        'model' => 'qwen2.5:1.5b',
+        'model' => $model,
         'messages' => array(
             array( 'role' => 'system', 'content' => $system_prompt ),
             array( 'role' => 'user', 'content' => $user_question )
@@ -133,13 +197,13 @@ function handle_ai_chat_request( $request ) {
         'stream' => true // Включаем стриминг в Ollama!
     );
 
-    $ch = curl_init('http://localhost:11434/v1/chat/completions');
+    $ch = curl_init( $ai_url );
     
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, false); // Мы сами будем выводить данные
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json'));
-    curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+    curl_setopt( $ch, CURLOPT_HTTPHEADER, $headers );
+    curl_setopt( $ch, CURLOPT_TIMEOUT, 120 );
 
     // Функция-коллбэк: вызывается каждый раз, когда от Ollama прилетает кусочек текста
     curl_setopt($ch, CURLOPT_WRITEFUNCTION, function($ch, $data) {

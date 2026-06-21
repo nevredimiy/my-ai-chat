@@ -24,7 +24,8 @@ document.addEventListener('DOMContentLoaded', function() {
         botMessageElement.innerText = '...'; // Статус ожидания
 
         try {
-            const response = await fetch('/wp-json/aibot/v1/chat', {
+            const apiEndpoint = window.location.origin + '/index.php?rest_route=/aibot/v1/chat';
+            const response = await fetch(apiEndpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ question: question })
