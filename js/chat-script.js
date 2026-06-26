@@ -2,8 +2,43 @@ document.addEventListener('DOMContentLoaded', function() {
     const input = document.getElementById('ai-chat-input');
     const button = document.getElementById('ai-chat-send');
     const messagesContainer = document.getElementById('ai-chat-messages');
+    const widget = document.getElementById('ai-chat-widget');
+    const toggleBtn = document.getElementById('ai-chat-toggle');
+    const minimizeBtn = document.getElementById('ai-chat-minimize');
 
-    if (!button || !input || !messagesContainer) return;
+    if (!button || !input || !messagesContainer || !widget) return;
+
+    // Восстановление состояния чата из localStorage
+    const isChatOpen = localStorage.getItem('ai_chat_open') === 'true';
+    if (isChatOpen) {
+        widget.classList.remove('collapsed');
+    } else {
+        widget.classList.add('collapsed');
+    }
+
+    function openChat() {
+        widget.classList.remove('collapsed');
+        localStorage.setItem('ai_chat_open', 'true');
+        setTimeout(() => {
+            input.focus();
+        }, 300); // Фокус после завершения анимации раскрытия
+    }
+
+    function closeChat() {
+        widget.classList.add('collapsed');
+        localStorage.setItem('ai_chat_open', 'false');
+    }
+
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', openChat);
+    }
+
+    if (minimizeBtn) {
+        minimizeBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            closeChat();
+        });
+    }
 
     button.addEventListener('click', sendMessage);
     input.addEventListener('keypress', function(e) {

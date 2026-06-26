@@ -58,7 +58,7 @@ function ai_chat_enqueue_assets() {
         'ai-chat-style', 
         plugins_url( 'css/chat-style.css', __FILE__ ), 
         array(), 
-        '1.1' 
+        filemtime( plugin_dir_path( __FILE__ ) . 'css/chat-style.css' )
     );
 
     // Подключаем JS файл (true означает загрузить в футере сайта)
@@ -66,7 +66,7 @@ function ai_chat_enqueue_assets() {
         'ai-chat-script', 
         plugins_url( 'js/chat-script.js', __FILE__ ), 
         array(), 
-        '1.1', 
+        filemtime( plugin_dir_path( __FILE__ ) . 'js/chat-script.js' ), 
         true 
     );
 }
@@ -270,94 +270,6 @@ function handle_ai_chat_request( $request ) {
    
 // Подключаем функцию к хуку сохранения записей, страниц и товаров
 add_action( 'save_post', 'ai_chat_handle_post_save', 10, 3 );
-
-// function ai_chat_handle_post_save( $post_id, $post, $update ) {
-//     // 1. Защита от лишних срабатываний
-//     if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) return;
-//     if ( wp_is_post_revision( $post_id ) ) return;
-//     if ( $post->post_status !== 'publish' ) return;
-
-//     // Проверяем только нужные нам типы записей
-//     $allowed_types = array( 'post', 'page', 'product' );
-//     if ( ! in_array( $post->post_type, $allowed_types ) ) return;
-
-//     // 2. Формируем чистый текст для отправки в эмбеддинг-модель
-//     $title = $post->post_title;
-//     $content = wp_strip_all_tags( $post->post_content );
-    
-//     $text_to_embed = "";
-
-//     if ( $post->post_type === 'product' && function_exists( 'wc_get_product' ) ) {
-//         // Специфика для товаров WooCommerce
-//         $product = wc_get_product( $post_id );
-//         if ( $product ) {
-//             $price = wp_strip_all_tags( $product->get_price_html() );
-//             $price = html_entity_decode( $price, ENT_QUOTES, 'UTF-8' );
-//             $sku = $product->get_sku();
-            
-//             $text_to_embed = "Товар: {$title}. ";
-//             if ( ! empty( $sku ) ) $text_to_embed .= "Артикул: {$sku}. ";
-//             $text_to_embed .= "Цена: {$price}. Описание: {$content}";
-//         }
-//     } else {
-//         // Для обычных страниц и блогов
-//         $type_label = ( $post->post_type === 'page' ) ? 'Страница' : 'Статья';
-//         $text_to_embed = "{$type_label}: {$title}. Текст: {$content}";
-//     }
-
-//     if ( empty( $text_to_embed ) ) return;
-
-//     // 3. Запрос в Ollama за вектором (nomic-embed-text)
-//     $ollama_response = wp_remote_post( OLLAMA_API_URL . '/embeddings', array(
-//         'headers' => array( 'Content-Type' => 'application/json' ),
-//         'body'    => json_encode( array(
-//             'model'  => 'nomic-embed-text',
-//             'prompt' => $text_to_embed
-//         ) ),
-//         'timeout' => 15
-//     ) );
-
-//     if ( is_wp_error( $ollama_response ) ) {
-//         error_log( 'AI Bot Error: Ошибка запроса эмбеддинга в Ollama: ' . $ollama_response->get_error_message() );
-//         return;
-//     }
-
-//     $ollama_body = json_decode( wp_remote_retrieve_body( $ollama_response ), true );
-//     $vector = $ollama_body['embedding'] ?? null;
-
-//     if ( ! is_array( $vector ) || count( $vector ) !== EMBEDDING_VECTOR_SIZE ) {
-//         error_log( 'AI Bot Error: Ollama вернула пустой или некорректный вектор.' );
-//         return;
-//     }
-
-//     // 4. Отправка вектора в Qdrant
-//     // В Qdrant мы делаем PUT-запрос на конкретную точку (points) базы данных
-//     $qdrant_url = QDRANT_API_URL . '/collections/' . QDRANT_COLLECTION_NAME . '/points?wait=true';
-
-//     $qdrant_body = array(
-//         'points' => array(
-//             array(
-//                 'id'      => $post_id, // Используем ID поста WordPress как ID в векторной базе
-//                 'vector'  => $vector,  // Массив из 768 чисел
-//                 'payload' => array(    // Метаданные для последующей фильтрации при поиске
-//                     'post_type' => $post->post_type,
-//                     'title'     => $title
-//                 )
-//             )
-//         )
-//     );
-
-//     $qdrant_response = wp_remote_request( $qdrant_url, array(
-//         'method'  => 'PUT',
-//         'headers' => array( 'Content-Type' => 'application/json' ),
-//         'body'    => json_encode( $qdrant_body ),
-//         'timeout' => 10
-//     ) );
-
-//     if ( is_wp_error( $qdrant_response ) ) {
-//         error_log( 'AI Bot Error: Не удалось отправить вектор в Qdrant: ' . $qdrant_response->get_error_message() );
-//     }
-// }
 
 function ai_chat_handle_post_save( $post_id, $post, $update ) {
     // Проверим, заходит ли вообще WordPress в эту функцию
@@ -601,6 +513,55 @@ class AI_Bot_CLI_Commands {
         $progress->finish();
         WP_CLI::success( "Индексация успешно завершена! Все данные в Qdrant." );
     }
+
+    /**
+     * Тестирование семантического поиска.
+     * * ## OPTIONS
+     * * <query>
+     * : Поисковая фраза на естественном языке.
+     *
+     * @param array $args
+     * @param array $assoc_args
+     */
+    public function search( $args, $assoc_args ) {
+        if ( empty( $args[0] ) ) {
+            WP_CLI::error( "Ви забули вказати пошуковий запит. Приклад: wp ai-bot search 'шукаю кросівки'." );
+        }
+
+        $query_text = $args[0];
+        WP_CLI::log( "Ищем: " . $query_text );
+
+        $results = ai_chat_search_similar_content( $query_text, 3 );
+
+        if ( empty( $results ) ) {
+            WP_CLI::error( "Ничего не найдено или произошла ошибка." );
+        }
+
+        foreach ( $results as $item ) {
+            WP_CLI::log( sprintf( "- [ID %d] %s (Схожесть: %0.4f)", $item['id'], $item['title'], $item['score'] ) );
+        }
+    }
+
+    /**
+     * Полноценный тест RAG-ответа (Поиск + Генерация).
+     * * ## OPTIONS
+     * * <question>
+     * : Вопрос к боту.
+     *
+     * @param array $args
+     * @param array $assoc_args
+     */
+    public function ask( $args, $assoc_args ) {
+        $question = $args[0];
+        WP_CLI::log( "Вопрос боту: " . $question );
+        WP_CLI::log( "Думаю..." );
+
+        $response = ai_chat_generate_rag_response( $question );
+
+        WP_CLI::log( "\n================ ОТВЕТ БОТА ================" );
+        WP_CLI::log( $response );
+        WP_CLI::log( "============================================" );
+    }
 }
 
 /**
@@ -669,4 +630,97 @@ function ai_chat_search_similar_content( $query_text, $limit = 3 ) {
     }
 
     return $found_items;
+}
+
+/**
+ * Главная функция RAG: принимает вопрос, ищет контекст в Qdrant и генерирует ответ через Qwen.
+ *
+ * @param string $user_question Вопрос пользователя в чате
+ * @return string               Итоговый ответ нейросети
+ */
+function ai_chat_generate_rag_response( $user_question ) {
+    // 1. Шаг поиска: Достаем топ-3 релевантных товара/поста
+    $similar_items = ai_chat_search_similar_content( $user_question, 3 );
+    
+    $context_text = "";
+    
+    if ( ! empty( $similar_items ) ) {
+        $context_text = "Используй следующую информацию о товарах и страницах сайта для ответа на вопрос. Если в контексте нет нужного товара, скажи, что его нет в наличии.\n\n";
+        
+        foreach ( $similar_items as $item ) {
+            // Если схожесть совсем низкая (например, меньше 0.55), можем игнорировать этот объект
+            if ( $item['score'] < 0.53 ) continue;
+
+            $post_id = $item['id'];
+            $permalink = get_permalink( $post_id );
+            
+            // Собираем чистый текст для контекста модели
+            $post = get_post( $post_id );
+            if ( $post ) {
+                $context_text .= "--- \n";
+                $context_text .= "Название: " . $post->post_title . "\n";
+                $context_text .= "Ссылка на товар: " . $permalink . "\n";
+                
+                if ( $post->post_type === 'product' && function_exists( 'wc_get_product' ) ) {
+                    $product = wc_get_product( $post_id );
+                    if ( $product ) {
+                        $context_text .= "Цена: " . wp_strip_all_tags($product->get_price_html()) . "\n";
+                    }
+                }
+                $context_text .= "Описание: " . wp_strip_all_tags( wp_trim_words( $post->post_content, 50 ) ) . "\n";
+            }
+        }
+    }
+
+    // 2. Шаг генерации: Меняем промпт и убираем вымышленную ссылку из примера pattern'а
+    $system_prompt = "Ты — строгий и вежливый ассистент-консультант в интернет-магазине. Твоя задача — отвечать на вопросы пользователей на основе предоставленного КОНТЕКСТА товаров.\n" .
+                     "ПРАВИЛО ДЛЯ ССЫЛОК: Ты должен брать ссылку ТАКУЮ ЖЕ, как указано в поле 'Ссылка:' для этого товара в контексте. Не изменяй её, не придумывай слаги. Если рекомендуешь товар, пиши его название, а рядом в скобках ставь точную ссылку из контекста.\n" .
+                     "Отвечай строго на украинском языке, так как пользователь пишет на украинском.";
+    
+    $full_prompt = "КОНТЕКСТ ИЗ БАЗЫ ДАННЫХ:\n" . $context_text . "\n\n" .
+                   "Пример формата вывода ссылки:\n" .
+                   "Так, у нас є Кепка Червона ( ССЫЛКА_ИЗ_КОНТЕКСТА ).\n\n" .
+                   "Вопрос пользователя: " . $user_question . "\n" .
+                   "Ответ:";
+
+    // Запрос к основной модели Qwen
+    $ollama_response = wp_remote_post( OLLAMA_API_URL . '/generate', array(
+        'headers' => array( 'Content-Type' => 'application/json' ),
+        'body'    => json_encode( array(
+            'model'  => 'qwen2.5:1.5b',
+            'prompt' => $full_prompt,
+            'system' => $system_prompt,
+            'stream' => false,
+            'options' => array(
+                'temperature' => 0.3 // Снижаем креативность, чтобы бот строго следовал контексту и промпту
+            )
+        ) ),
+        'timeout' => 45
+    ) );
+
+    if ( is_wp_error( $ollama_response ) ) {
+        return "Извините, произошла техническая ошибка при связи с мозгом бота: " . $ollama_response->get_error_message();
+    }
+
+    $body = json_decode( wp_remote_retrieve_body( $ollama_response ), true );
+    return $body['response'] ?? "Не удалось сгенерировать ответ.";
+}
+
+add_action( 'wp_ajax_ai_chat_message', 'ai_chat_ajax_handler' );
+add_action( 'wp_ajax_nopriv_ai_chat_message', 'ai_chat_ajax_handler' ); // Чтобы работало и для гостей
+
+function ai_chat_ajax_handler() {
+    // Проверка nonce-защиты для безопасности
+    check_ajax_referer( 'ai_chat_nonce', 'nonce' );
+
+    $message = isset( $_POST['message'] ) ? sanitize_text_field( $_POST['message'] ) : '';
+    
+    if ( empty( $message ) ) {
+        wp_send_json_error( 'Пустое сообщение' );
+    }
+
+    // Вызываем наш готовый RAG
+    $response = ai_chat_generate_rag_response( $message );
+
+    wp_send_json_success( $response );
 }
