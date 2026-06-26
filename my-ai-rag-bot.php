@@ -132,10 +132,25 @@ function my_ai_chat_can_ping_ollama( $test_url ) {
 add_action( 'rest_api_init', function () {
     register_rest_route( 'aibot/v1', '/chat', array(
         'methods'             => 'POST',
-        'callback'            => 'handle_ai_chat_request',
+        'callback'            => 'ai_chat_rest_handle_message',
         'permission_callback' => '__return_true',
     ) );
 } );
+
+function ai_chat_rest_handle_message( WP_REST_Request $request ) {
+    $params = $request->get_json_params();
+    $user_question = !empty($params['message']) ? sanitize_text_field($params['message']) : '';
+    
+    if ( empty( $user_question ) ) {
+        return new WP_REST_Response( array( 'answer' => 'Вопрос пуст' ), 400 );
+    }
+
+    // Вызываем твою рабочую функцию генерации ответа!
+    $bot_answer = ai_chat_generate_rag_response( $user_question );
+
+    // Возвращаем JSON строго в том формате, который ожидает твой chat-script.js
+    return new WP_REST_Response( array( 'answer' => $bot_answer ), 200 );
+}
 
 // 4. Логика RAG поиска и связи с Ollama/OpenAI
 function handle_ai_chat_request( $request ) {
