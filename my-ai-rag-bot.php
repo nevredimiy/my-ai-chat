@@ -7,6 +7,49 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
+// ==========================================
+// КОНСТАНТЫ И НАСТРОЙКИ ИНФРАСТРУКТУРЫ
+// ==========================================
+define( 'OLLAMA_API_URL', 'http://host.docker.internal:11434/api' );
+define( 'QDRANT_API_URL', 'http://host.docker.internal:6333' );
+define( 'QDRANT_COLLECTION_NAME', 'wp_products_collection' );
+define( 'EMBEDDING_VECTOR_SIZE', 768 ); 
+
+// Хук активации плагина: сработает, когда вы переактивируете плагин в админке WordPress
+register_activation_hook( __FILE__, 'ai_chat_initialize_vector_db' );
+
+function ai_chat_initialize_vector_db() {
+    $collection_url = QDRANT_API_URL . '/collections/' . QDRANT_COLLECTION_NAME;
+
+    // 1. Сначала проверяем, существует ли уже такая коллекция
+    $check_response = wp_remote_get( $collection_url );
+    
+    if ( ! is_wp_error( $check_response ) && wp_remote_retrieve_response_code( $check_response ) === 200 ) {
+        // Коллекция уже создана, ничего делать не нужно
+        return;
+    }
+
+    // 2. Если коллекции нет, отправляем PUT-запрос на её создание
+    $body = array(
+        'vectors' => array(
+            'size'     => EMBEDDING_VECTOR_SIZE, // Размерность (кол-во чисел)
+            'distance' => 'Cosine'               // Метрика сравнения (Косинусное сходство)
+        )
+    );
+
+    $response = wp_remote_request( $collection_url, array(
+        'method'  => 'PUT',
+        'headers' => array( 'Content-Type' => 'application/json' ),
+        'body'    => json_encode( $body ),
+        'timeout' => 10
+    ) );
+
+    if ( is_wp_error( $response ) ) {
+        // Запишем ошибку в лог WordPress, если Qdrant не ответил
+        error_log( 'AI RAG Bot Error: Не удалось связаться с Qdrant: ' . $response->get_error_message() );
+    }
+}
+
 // 1. Правильно подключаем стили и скрипты в WordPress
 add_action( 'wp_enqueue_scripts', 'ai_chat_enqueue_assets' );
 function ai_chat_enqueue_assets() {
@@ -225,3 +268,405 @@ function handle_ai_chat_request( $request ) {
     die(); // Останавливаем работу WordPress, чтобы не примешивать лишний JSON в поток
 }
    
+// Подключаем функцию к хуку сохранения записей, страниц и товаров
+add_action( 'save_post', 'ai_chat_handle_post_save', 10, 3 );
+
+// function ai_chat_handle_post_save( $post_id, $post, $update ) {
+//     // 1. Защита от лишних срабатываний
+//     if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) return;
+//     if ( wp_is_post_revision( $post_id ) ) return;
+//     if ( $post->post_status !== 'publish' ) return;
+
+//     // Проверяем только нужные нам типы записей
+//     $allowed_types = array( 'post', 'page', 'product' );
+//     if ( ! in_array( $post->post_type, $allowed_types ) ) return;
+
+//     // 2. Формируем чистый текст для отправки в эмбеддинг-модель
+//     $title = $post->post_title;
+//     $content = wp_strip_all_tags( $post->post_content );
+    
+//     $text_to_embed = "";
+
+//     if ( $post->post_type === 'product' && function_exists( 'wc_get_product' ) ) {
+//         // Специфика для товаров WooCommerce
+//         $product = wc_get_product( $post_id );
+//         if ( $product ) {
+//             $price = wp_strip_all_tags( $product->get_price_html() );
+//             $price = html_entity_decode( $price, ENT_QUOTES, 'UTF-8' );
+//             $sku = $product->get_sku();
+            
+//             $text_to_embed = "Товар: {$title}. ";
+//             if ( ! empty( $sku ) ) $text_to_embed .= "Артикул: {$sku}. ";
+//             $text_to_embed .= "Цена: {$price}. Описание: {$content}";
+//         }
+//     } else {
+//         // Для обычных страниц и блогов
+//         $type_label = ( $post->post_type === 'page' ) ? 'Страница' : 'Статья';
+//         $text_to_embed = "{$type_label}: {$title}. Текст: {$content}";
+//     }
+
+//     if ( empty( $text_to_embed ) ) return;
+
+//     // 3. Запрос в Ollama за вектором (nomic-embed-text)
+//     $ollama_response = wp_remote_post( OLLAMA_API_URL . '/embeddings', array(
+//         'headers' => array( 'Content-Type' => 'application/json' ),
+//         'body'    => json_encode( array(
+//             'model'  => 'nomic-embed-text',
+//             'prompt' => $text_to_embed
+//         ) ),
+//         'timeout' => 15
+//     ) );
+
+//     if ( is_wp_error( $ollama_response ) ) {
+//         error_log( 'AI Bot Error: Ошибка запроса эмбеддинга в Ollama: ' . $ollama_response->get_error_message() );
+//         return;
+//     }
+
+//     $ollama_body = json_decode( wp_remote_retrieve_body( $ollama_response ), true );
+//     $vector = $ollama_body['embedding'] ?? null;
+
+//     if ( ! is_array( $vector ) || count( $vector ) !== EMBEDDING_VECTOR_SIZE ) {
+//         error_log( 'AI Bot Error: Ollama вернула пустой или некорректный вектор.' );
+//         return;
+//     }
+
+//     // 4. Отправка вектора в Qdrant
+//     // В Qdrant мы делаем PUT-запрос на конкретную точку (points) базы данных
+//     $qdrant_url = QDRANT_API_URL . '/collections/' . QDRANT_COLLECTION_NAME . '/points?wait=true';
+
+//     $qdrant_body = array(
+//         'points' => array(
+//             array(
+//                 'id'      => $post_id, // Используем ID поста WordPress как ID в векторной базе
+//                 'vector'  => $vector,  // Массив из 768 чисел
+//                 'payload' => array(    // Метаданные для последующей фильтрации при поиске
+//                     'post_type' => $post->post_type,
+//                     'title'     => $title
+//                 )
+//             )
+//         )
+//     );
+
+//     $qdrant_response = wp_remote_request( $qdrant_url, array(
+//         'method'  => 'PUT',
+//         'headers' => array( 'Content-Type' => 'application/json' ),
+//         'body'    => json_encode( $qdrant_body ),
+//         'timeout' => 10
+//     ) );
+
+//     if ( is_wp_error( $qdrant_response ) ) {
+//         error_log( 'AI Bot Error: Не удалось отправить вектор в Qdrant: ' . $qdrant_response->get_error_message() );
+//     }
+// }
+
+function ai_chat_handle_post_save( $post_id, $post, $update ) {
+    // Проверим, заходит ли вообще WordPress в эту функцию
+    // Если при нажатии "Обновить" вы увидите этот текст — значит хук работает!
+    // wp_die('Хук save_post сработал для ID: ' . $post_id);
+
+    if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) return;
+    if ( wp_is_post_revision( $post_id ) ) return;
+    if ( $post->post_status !== 'publish' ) return;
+
+    $allowed_types = array( 'post', 'page', 'product' );
+    if ( ! in_array( $post->post_type, $allowed_types ) ) return;
+
+    $title = $post->post_title;
+    $content = wp_strip_all_tags( $post->post_content );
+    $text_to_embed = "";
+
+    if ( $post->post_type === 'product' && function_exists( 'wc_get_product' ) ) {
+        $product = wc_get_product( $post_id );
+        if ( $product ) {
+            $price = wp_strip_all_tags( $product->get_price_html() );
+            $price = html_entity_decode( $price, ENT_QUOTES, 'UTF-8' );
+            $sku = $product->get_sku();
+            
+            $text_to_embed = "Товар: {$title}. ";
+            if ( ! empty( $sku ) ) $text_to_embed .= "Артикул: {$sku}. ";
+            $text_to_embed .= "Цена: {$price}. Описание: {$content}";
+        }
+    } else {
+        $type_label = ( $post->post_type === 'page' ) ? 'Страница' : 'Статья';
+        $text_to_embed = "{$type_label}: {$title}. Текст: {$content}";
+    }
+
+    if ( empty( $text_to_embed ) ) {
+        wp_die('Ошибка: Сформированный текст для эмбеддинга пуст!');
+    }
+
+    // Проверим, какой текст мы подготовили для нейросети
+    // wp_die('Текст для отправки: ' . $text_to_embed);
+
+    // 3. Запрос в Ollama
+    $ollama_response = wp_remote_post( OLLAMA_API_URL . '/embeddings', array(
+        'headers' => array( 'Content-Type' => 'application/json' ),
+        'body'    => json_encode( array(
+            'model'  => 'nomic-embed-text',
+            'prompt' => $text_to_embed
+        ) ),
+        'timeout' => 90
+    ) );
+
+    if ( is_wp_error( $ollama_response ) ) {
+        wp_die( 'Ошибка Ollama API: ' . $ollama_response->get_error_message() );
+    }
+
+    $ollama_body = json_decode( wp_remote_retrieve_body( $ollama_response ), true );
+    $vector = $ollama_body['embedding'] ?? null;
+
+    if ( ! is_array( $vector ) ) {
+        wp_die( 'Ollama не вернула вектор. Ответ сервера: ' . wp_remote_retrieve_body( $ollama_response ) );
+    }
+
+    // 4. Отправка вектора в Qdrant
+    $qdrant_url = QDRANT_API_URL . '/collections/' . QDRANT_COLLECTION_NAME . '/points?wait=true';
+
+    $qdrant_body = array(
+        'points' => array(
+            array(
+                'id'      => $post_id,
+                'vector'  => $vector,
+                'payload' => array(
+                    'post_type' => $post->post_type,
+                    'title'     => $title
+                )
+            )
+        )
+    );
+
+    $qdrant_response = wp_remote_request( $qdrant_url, array(
+        'method'  => 'PUT',
+        'headers' => array( 'Content-Type' => 'application/json' ),
+        'body'    => json_encode( $qdrant_body ),
+        'timeout' => 10
+    ) );
+
+    if ( is_wp_error( $qdrant_response ) ) {
+        error_log( 'AI Bot Error: Не удалось отправить вектор в Qdrant: ' . $qdrant_response->get_error_message() );
+    } else {
+        $code = wp_remote_retrieve_response_code( $qdrant_response );
+        if ( $code !== 200 ) {
+            error_log( "AI Bot Error: Qdrant вернул код ответа {$code}" );
+        }
+    }
+}
+
+// ==========================================
+// РЕГИСТРАЦИЯ И СТРУКТУРА WP-CLI КОМАНДЫ
+// ==========================================
+
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+    WP_CLI::add_command( 'ai-bot', 'AI_Bot_CLI_Commands' );
+}
+
+class AI_Bot_CLI_Commands {
+
+    /**
+     * Массовая индексация товаров, постов и страниц в векторную БД Qdrant.
+     * * ## OPTIONS
+     * * [--batch_size=<size>]
+     * : Количество товаров, обрабатываемых за один шаг (батч). По умолчанию 50.
+     * ---
+     * default: 50
+     * ---
+     * * ## EXAMPLES
+     * * wp ai-bot index --batch_size=100
+     *
+     * @param array $args       Свободные аргументы
+     * @param array $assoc_args Именованные аргументы (например, --batch_size)
+     */
+    public function index( $args, $assoc_args ) {
+        $batch_size = intval( $assoc_args['batch_size'] );
+
+        // Подстраховка: если параметр не передан, берем 50 по умолчанию
+        $batch_size = isset( $assoc_args['batch_size'] ) ? intval( $assoc_args['batch_size'] ) : 50;
+        if ( $batch_size <= 0 ) {
+            $batch_size = 50;
+        }
+        
+        WP_CLI::log( WP_CLI::colorize( "%BЗапуск массовой индексации контента в Qdrant...%n" ) );
+        WP_CLI::log( "Размер батча: " . $batch_size );
+
+        // 1. Считаем, сколько всего объектов нам нужно обработать
+        $query_args = array(
+            'post_type'      => array( 'post', 'page', 'product' ),
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'fields'         => 'ids', // Берем только ID, чтобы не забивать память
+        );
+        $all_post_ids = get_posts( $query_args );
+        $total_count = count( $all_post_ids );
+
+        if ( $total_count === 0 ) {
+            WP_CLI::error( "Нет опубликованных постов, страниц или товаров для индексации." );
+        }
+
+        WP_CLI::log( "Найдено объектов для обработки: " . $total_count );
+
+        // Создаем красивый прогресс-бар в консоли
+        $progress = \WP_CLI\Utils\make_progress_bar( 'Индексация', $total_count );
+
+        // 2. Бьем массив ID на порции (батчи)
+        $batches = array_chunk( $all_post_ids, $batch_size );
+
+        foreach ( $batches as $batch ) {
+            foreach ( $batch as $post_id ) {
+                $post = get_post( $post_id );
+                if ( ! $post ) {
+                    $progress->tick();
+                    continue;
+                }
+
+                // Формируем текст (логика один в один как при сохранении)
+                $title = $post->post_title;
+                $content = wp_strip_all_tags( $post->post_content );
+                $text_to_embed = "";
+
+                if ( $post->post_type === 'product' && function_exists( 'wc_get_product' ) ) {
+                    $product = wc_get_product( $post_id );
+                    if ( $product ) {
+                        $price = wp_strip_all_tags( $product->get_price_html() );
+                        $price = html_entity_decode( $price, ENT_QUOTES, 'UTF-8' );
+                        $sku = $product->get_sku();
+                        
+                        $text_to_embed = "Товар: {$title}. ";
+                        if ( ! empty( $sku ) ) $text_to_embed .= "Артикул: {$sku}. ";
+                        $text_to_embed .= "Цена: {$price}. Описание: {$content}";
+                    }
+                } else {
+                    $type_label = ( $post->post_type === 'page' ) ? 'Страница' : 'Статья';
+                    $text_to_embed = "{$type_label}: {$title}. Текст: {$content}";
+                }
+
+                if ( empty( $text_to_embed ) ) {
+                    $progress->tick();
+                    continue;
+                }
+
+                // Запрос в Ollama за вектором
+                $ollama_response = wp_remote_post( OLLAMA_API_URL . '/embeddings', array(
+                    'headers' => array( 'Content-Type' => 'application/json' ),
+                    'body'    => json_encode( array(
+                        'model'  => 'nomic-embed-text',
+                        'prompt' => $text_to_embed
+                    ) ),
+                    'timeout' => 90
+                ) );
+
+                if ( is_wp_error( $ollama_response ) ) {
+                    WP_CLI::warning( "Ошибка Ollama для ID {$post_id}: " . $ollama_response->get_error_message() );
+                    $progress->tick();
+                    continue;
+                }
+
+                $ollama_body = json_decode( wp_remote_retrieve_body( $ollama_response ), true );
+                $vector = $ollama_body['embedding'] ?? null;
+
+                if ( ! is_array( $vector ) ) {
+                    $progress->tick();
+                    continue;
+                }
+
+                // Отправка вектора в Qdrant
+                $qdrant_url = QDRANT_API_URL . '/collections/' . QDRANT_COLLECTION_NAME . '/points?wait=true';
+                $qdrant_body = array(
+                    'points' => array(
+                        array(
+                            'id'      => $post_id,
+                            'vector'  => $vector,
+                            'payload' => array(
+                                'post_type' => $post->post_type,
+                                'title'     => $title
+                            )
+                        )
+                    )
+                );
+
+                wp_remote_request( $qdrant_url, array(
+                    'method'  => 'PUT',
+                    'headers' => array( 'Content-Type' => 'application/json' ),
+                    'body'    => json_encode( $qdrant_body ),
+                    'timeout' => 10
+                ) );
+
+                // Шаг вперед для прогресс-бара
+                $progress->tick();
+            }
+            
+            // Небольшая пауза между батчами, чтобы процессор ноутбука "отдыхал"
+            usleep( 50000 ); // 0.05 секунды
+        }
+
+        $progress->finish();
+        WP_CLI::success( "Индексация успешно завершена! Все данные в Qdrant." );
+    }
+}
+
+/**
+ * Семантический поиск похожих по смыслу товаров и постов в Qdrant.
+ *
+ * @param string $query_text Текст вопроса пользователя (например, "ищу очки")
+ * @param int $limit         Количество возвращаемых результатов
+ * @return array             Массив ID постов WordPress, упорядоченный по релевантности
+ */
+function ai_chat_search_similar_content( $query_text, $limit = 3 ) {
+    if ( empty( $query_text ) ) return array();
+
+    // 1. Получаем вектор для поискового запроса от Ollama
+    $ollama_response = wp_remote_post( OLLAMA_API_URL . '/embeddings', array(
+        'headers' => array( 'Content-Type' => 'application/json' ),
+        'body'    => json_encode( array(
+            'model'  => 'nomic-embed-text',
+            'prompt' => $query_text
+        ) ),
+        'timeout' => 15
+    ) );
+
+    if ( is_wp_error( $ollama_response ) ) {
+        error_log( 'AI Bot Search Error: Не удалось получить эмбеддинг запроса: ' . $ollama_response->get_error_message() );
+        return array();
+    }
+
+    $ollama_body = json_decode( wp_remote_retrieve_body( $ollama_response ), true );
+    $query_vector = $ollama_body['embedding'] ?? null;
+
+    if ( ! is_array( $query_vector ) ) {
+        return array();
+    }
+
+    // 2. Ищем похожие векторы в Qdrant
+    $qdrant_url = QDRANT_API_URL . '/collections/' . QDRANT_COLLECTION_NAME . '/points/search';
+
+    $qdrant_body = array(
+        'vector'      => $query_vector,
+        'limit'       => $limit,
+        'with_payload'=> true // Просим вернуть метаданные (название, тип)
+    );
+
+    $qdrant_response = wp_remote_post( $qdrant_url, array(
+        'headers' => array( 'Content-Type' => 'application/json' ),
+        'body'    => json_encode( $qdrant_body ),
+        'timeout' => 10
+    ) );
+
+    if ( is_wp_error( $qdrant_response ) ) {
+        error_log( 'AI Bot Search Error: Ошибка поиска в Qdrant: ' . $qdrant_response->get_error_message() );
+        return array();
+    }
+
+    $qdrant_results = json_decode( wp_remote_retrieve_body( $qdrant_response ), true );
+    $points = $qdrant_results['result'] ?? array();
+
+    $found_items = array();
+    foreach ( $points as $point ) {
+        // Извлекаем ID поста и оценку схожести (score от 0 до 1)
+        $found_items[] = array(
+            'id'    => $point['id'],
+            'score' => $point['score'],
+            'title' => $point['payload']['title'] ?? 'Без названия'
+        );
+    }
+
+    return $found_items;
+}
