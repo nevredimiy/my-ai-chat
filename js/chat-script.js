@@ -68,57 +68,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (!response.ok) throw new Error('Ошибка сервера');
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder('utf-8');
-            let isFirstChunk = true;
-            let buffer = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                // Декодируем бинарные данные в строку
-                buffer += decoder.decode(value, { stream: true });
-                
-                // Разбиваем буфер на строки, так как SSE присылает данные построчно
-                const lines = buffer.split('\n');
-                // Оставляем последний незавершенный кусок в буфере
-                buffer = lines.pop(); 
-
-                for (const line of lines) {
-                    const cleanedLine = line.trim();
-                    if (!cleanedLine || cleanedLine === 'data: [DONE]') continue;
-
-                    if (cleanedLine.startsWith('data:')) {
-                        try {
-                            const jsonStr = cleanedLine.replace(/^data:\s*/, '');
-                            const parsed = JSON.parse(jsonStr);
-                            const content = parsed.choices[0]?.delta?.content || '';
-
-                            if (content) {
-                                if (isFirstChunk) {
-                                    botMessageElement.innerText = ''; // Очищаем '...'
-                                    isFirstChunk = false;
-                                }
-                                // Дописываем кусочек текста прямо в элемент на экране
-                                botMessageElement.innerText += content;
-                                
-                                // Скроллим чат вниз по мере наполнения текстом
-                                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                            }
-                        } catch (e) {
-                            // Игнорируем ошибки парсинга неполных JSON-строк
-                        }
-                    }
-                }
-            }
+            const data = await response.json();
+            botMessageElement.innerText = data.answer || 'Нет ответа.';
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
         } catch (error) {
-            if (botMessageElement.innerText === '...') {
-                botMessageElement.innerText = 'Ошибка соединения с сервером.';
-            } else {
-                botMessageElement.innerText += '\n[Связь оборвалась]';
-            }
+            botMessageElement.innerText = 'Ошибка соединения с сервером.';
         } finally {
             button.disabled = false;
         }

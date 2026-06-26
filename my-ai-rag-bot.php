@@ -139,7 +139,7 @@ add_action( 'rest_api_init', function () {
 
 function ai_chat_rest_handle_message( WP_REST_Request $request ) {
     $params = $request->get_json_params();
-    $user_question = !empty($params['message']) ? sanitize_text_field($params['message']) : '';
+    $user_question = !empty($params['question']) ? sanitize_text_field($params['question']) : '';
     
     if ( empty( $user_question ) ) {
         return new WP_REST_Response( array( 'answer' => 'Вопрос пуст' ), 400 );
