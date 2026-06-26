@@ -639,8 +639,19 @@ function ai_chat_search_similar_content( $query_text, $limit = 3 ) {
  * @return string               Итоговый ответ нейросети
  */
 function ai_chat_generate_rag_response( $user_question ) {
+    if ( ! function_exists( 'wc_get_product' ) && function_exists( 'WC' ) ) {
+        include_once WP_PLUGIN_DIR . '/woocommerce/woocommerce.php';
+    }
+
+    // --- ДЕБАГ ЛОГ ---
+    error_log( "== AI BOT REST API START ==" );
+    error_log( "Вопрос пользователя: " . $user_question );
+
     // 1. Шаг поиска: Достаем топ-3 релевантных товара/поста
     $similar_items = ai_chat_search_similar_content( $user_question, 3 );
+    
+    error_log( "Результаты поиска из Qdrant: " . print_r( $similar_items, true ) );
+    // -----------------
     
     $context_text = "";
     
@@ -649,13 +660,14 @@ function ai_chat_generate_rag_response( $user_question ) {
         
         foreach ( $similar_items as $item ) {
             // Если схожесть совсем низкая (например, меньше 0.55), можем игнорировать этот объект
-            if ( $item['score'] < 0.53 ) continue;
+            if ( $item['score'] < 0.40 ) continue;
 
             $post_id = $item['id'];
             $permalink = get_permalink( $post_id );
             
             // Собираем чистый текст для контекста модели
             $post = get_post( $post_id );
+            
             if ( $post ) {
                 $context_text .= "--- \n";
                 $context_text .= "Название: " . $post->post_title . "\n";
@@ -671,6 +683,8 @@ function ai_chat_generate_rag_response( $user_question ) {
             }
         }
     }
+
+    error_log( "Сформированный контекст для Qwen:\n" . $context_text );
 
     // 2. Шаг генерации: Меняем промпт и убираем вымышленную ссылку из примера pattern'а
     $system_prompt = "Ты — строгий и вежливый ассистент-консультант в интернет-магазине. Твоя задача — отвечать на вопросы пользователей на основе предоставленного КОНТЕКСТА товаров.\n" .
