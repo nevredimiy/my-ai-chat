@@ -8,18 +8,35 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // ==========================================
-// КОНСТАНТЫ И НАСТРОЙКИ ИНФРАСТРУКТУРЫ
+// ДИНАМИЧЕСКИЕ НАСТРОЙКИ ИНФРАСТРУКТУРЫ
 // ==========================================
-define( 'OLLAMA_API_URL', 'http://host.docker.internal:11434/api' );
-define( 'QDRANT_API_URL', 'http://host.docker.internal:6333' );
-define( 'QDRANT_COLLECTION_NAME', 'wp_products_collection' );
-define( 'EMBEDDING_VECTOR_SIZE', 768 ); 
+
+function get_my_ai_chat_ollama_url() {
+    $url = get_option( 'my_ai_chat_ollama_url', 'http://127.0.0.1:11434' );
+    $url = untrailingslashit( $url );
+    if ( substr( $url, -4 ) !== '/api' ) {
+        $url .= '/api';
+    }
+    return $url;
+}
+
+function get_my_ai_chat_qdrant_url() {
+    return untrailingslashit( get_option( 'my_ai_chat_qdrant_api_url', 'http://127.0.0.1:6333' ) );
+}
+
+function get_my_ai_chat_collection_name() {
+    return get_option( 'my_ai_chat_qdrant_collection_name', 'wp_products_collection' );
+}
+
+function get_my_ai_chat_vector_size() {
+    return (int) get_option( 'my_ai_chat_embedding_vector_size', 768 );
+}
 
 // Хук активации плагина: сработает, когда вы переактивируете плагин в админке WordPress
 register_activation_hook( __FILE__, 'ai_chat_initialize_vector_db' );
 
 function ai_chat_initialize_vector_db() {
-    $collection_url = QDRANT_API_URL . '/collections/' . QDRANT_COLLECTION_NAME;
+    $collection_url = get_my_ai_chat_qdrant_url() . '/collections/' . get_my_ai_chat_collection_name();
 
     // 1. Сначала проверяем, существует ли уже такая коллекция
     $check_response = wp_remote_get( $collection_url );
@@ -32,7 +49,7 @@ function ai_chat_initialize_vector_db() {
     // 2. Если коллекции нет, отправляем PUT-запрос на её создание
     $body = array(
         'vectors' => array(
-            'size'     => EMBEDDING_VECTOR_SIZE, // Размерность (кол-во чисел)
+            'size'     => get_my_ai_chat_vector_size(), // Размерность (кол-во чисел)
             'distance' => 'Cosine'               // Метрика сравнения (Косинусное сходство)
         )
     );
@@ -326,7 +343,7 @@ function ai_chat_handle_post_save( $post_id, $post, $update ) {
     // wp_die('Текст для отправки: ' . $text_to_embed);
 
     // 3. Запрос в Ollama
-    $ollama_response = wp_remote_post( OLLAMA_API_URL . '/embeddings', array(
+    $ollama_response = wp_remote_post( get_my_ai_chat_ollama_url() . '/embeddings', array(
         'headers' => array( 'Content-Type' => 'application/json' ),
         'body'    => json_encode( array(
             'model'  => 'nomic-embed-text',
@@ -347,7 +364,7 @@ function ai_chat_handle_post_save( $post_id, $post, $update ) {
     }
 
     // 4. Отправка вектора в Qdrant
-    $qdrant_url = QDRANT_API_URL . '/collections/' . QDRANT_COLLECTION_NAME . '/points?wait=true';
+    $qdrant_url = get_my_ai_chat_qdrant_url() . '/collections/' . get_my_ai_chat_collection_name() . '/points?wait=true';
 
     $qdrant_body = array(
         'points' => array(
@@ -391,20 +408,20 @@ class AI_Bot_CLI_Commands {
 
     /**
      * Массовая индексация товаров, постов и страниц в векторную БД Qdrant.
-     * * ## OPTIONS
-     * * [--batch_size=<size>]
+     *
+     * ## OPTIONS
+     *
+     * [--batch_size=<size>]
      * : Количество товаров, обрабатываемых за один шаг (батч). По умолчанию 50.
-     * ---
-     * default: 50
-     * ---
-     * * ## EXAMPLES
-     * * wp ai-bot index --batch_size=100
+     *
+     * ## EXAMPLES
+     *
+     * wp ai-bot index --batch_size=100
      *
      * @param array $args       Свободные аргументы
      * @param array $assoc_args Именованные аргументы (например, --batch_size)
      */
     public function index( $args, $assoc_args ) {
-        $batch_size = intval( $assoc_args['batch_size'] );
 
         // Подстраховка: если параметр не передан, берем 50 по умолчанию
         $batch_size = isset( $assoc_args['batch_size'] ) ? intval( $assoc_args['batch_size'] ) : 50;
@@ -472,7 +489,7 @@ class AI_Bot_CLI_Commands {
                 }
 
                 // Запрос в Ollama за вектором
-                $ollama_response = wp_remote_post( OLLAMA_API_URL . '/embeddings', array(
+                $ollama_response = wp_remote_post( get_my_ai_chat_ollama_url() . '/embeddings', array(
                     'headers' => array( 'Content-Type' => 'application/json' ),
                     'body'    => json_encode( array(
                         'model'  => 'nomic-embed-text',
@@ -496,7 +513,7 @@ class AI_Bot_CLI_Commands {
                 }
 
                 // Отправка вектора в Qdrant
-                $qdrant_url = QDRANT_API_URL . '/collections/' . QDRANT_COLLECTION_NAME . '/points?wait=true';
+                $qdrant_url = get_my_ai_chat_qdrant_url() . '/collections/' . get_my_ai_chat_collection_name() . '/points?wait=true';
                 $qdrant_body = array(
                     'points' => array(
                         array(
@@ -590,7 +607,7 @@ function ai_chat_search_similar_content( $query_text, $limit = 3 ) {
     if ( empty( $query_text ) ) return array();
 
     // 1. Получаем вектор для поискового запроса от Ollama
-    $ollama_response = wp_remote_post( OLLAMA_API_URL . '/embeddings', array(
+    $ollama_response = wp_remote_post( get_my_ai_chat_ollama_url() . '/embeddings', array(
         'headers' => array( 'Content-Type' => 'application/json' ),
         'body'    => json_encode( array(
             'model'  => 'nomic-embed-text',
@@ -612,7 +629,7 @@ function ai_chat_search_similar_content( $query_text, $limit = 3 ) {
     }
 
     // 2. Ищем похожие векторы в Qdrant
-    $qdrant_url = QDRANT_API_URL . '/collections/' . QDRANT_COLLECTION_NAME . '/points/search';
+    $qdrant_url = get_my_ai_chat_qdrant_url() . '/collections/' . get_my_ai_chat_collection_name() . '/points/search';
 
     $qdrant_body = array(
         'vector'      => $query_vector,
@@ -671,7 +688,9 @@ function ai_chat_generate_rag_response( $user_question ) {
     $context_text = "";
     
     if ( ! empty( $similar_items ) ) {
-        $context_text = "Используй следующую информацию о товарах и страницах сайта для ответа на вопрос. Если в контексте нет нужного товара, скажи, что его нет в наличии.\n\n";
+        // Подтягиваем дефолтную инструкцию контекста из админки
+        $db_context_instruction = get_option('my_ai_chat_context_template', 'Используй следующую информацию о товарах для ответа...');
+        $context_text = $db_context_instruction . "\n\n";
         
         foreach ( $similar_items as $item ) {
             // Если схожесть совсем низкая (например, меньше 0.55), можем игнорировать этот объект
@@ -684,9 +703,7 @@ function ai_chat_generate_rag_response( $user_question ) {
             $post = get_post( $post_id );
             
             if ( $post ) {
-                $context_text .= "--- \n";
-                $context_text .= "Название: " . $post->post_title . "\n";
-                $context_text .= "Ссылка на товар: " . $permalink . "\n";
+                $context_text .= "--- \nНазвание: " . $post->post_title . "\nСсылка на товар: " . $permalink . "\n";
                 
                 if ( $post->post_type === 'product' && function_exists( 'wc_get_product' ) ) {
                     $product = wc_get_product( $post_id );
@@ -702,10 +719,11 @@ function ai_chat_generate_rag_response( $user_question ) {
     error_log( "Сформированный контекст для Qwen:\n" . $context_text );
 
     // 2. Шаг генерации: Меняем промпт и убираем вымышленную ссылку из примера pattern'а
-    $system_prompt = "Ты — строгий и вежливый ассистент-консультант в интернет-магазине. Твоя задача — отвечать на вопросы пользователей на основе предоставленного КОНТЕКСТА товаров.\n" .
-                     "ПРАВИЛО ДЛЯ ССЫЛОК: Ты должен брать ссылку ТАКУЮ ЖЕ, как указано в поле 'Ссылка:' для этого товара в контексте. Не изменяй её, не придумывай слаги. Если рекомендуешь товар, пиши его название, а рядом в скобках ставь точную ссылку из контекста.\n" .
-                     "Отвечай строго на украинском языке, так как пользователь пишет на украинском.";
-    
+    $system_prompt = get_option( 'my_ai_chat_system_prompt' );
+    $model_name    = get_option( 'my_ai_chat_model_name', 'qwen2.5:1.5b' );
+    $temperature   = (float) get_option( 'my_ai_chat_temperature', 0.3 );
+    $ollama_base_url = get_option( 'my_ai_chat_ollama_url', 'http://host.docker.internal:11434' );
+
     $full_prompt = "КОНТЕКСТ ИЗ БАЗЫ ДАННЫХ:\n" . $context_text . "\n\n" .
                    "Пример формата вывода ссылки:\n" .
                    "Так, у нас є Кепка Червона ( ССЫЛКА_ИЗ_КОНТЕКСТА ).\n\n" .
@@ -713,15 +731,15 @@ function ai_chat_generate_rag_response( $user_question ) {
                    "Ответ:";
 
     // Запрос к основной модели Qwen
-    $ollama_response = wp_remote_post( OLLAMA_API_URL . '/generate', array(
+    $ollama_response = wp_remote_post( get_my_ai_chat_ollama_url() . '/generate', array(
         'headers' => array( 'Content-Type' => 'application/json' ),
         'body'    => json_encode( array(
-            'model'  => 'qwen2.5:1.5b',
+            'model'  => $model_name,
             'prompt' => $full_prompt,
             'system' => $system_prompt,
             'stream' => false,
             'options' => array(
-                'temperature' => 0.3 // Снижаем креативность, чтобы бот строго следовал контексту и промпту
+                'temperature' => $temperature
             )
         ) ),
         'timeout' => 45
@@ -752,4 +770,39 @@ function ai_chat_ajax_handler() {
     $response = ai_chat_generate_rag_response( $message );
 
     wp_send_json_success( $response );
+}
+
+// Регистрируем меню в админке
+add_action( 'admin_menu', 'wp_my_ai_chat_options_page' );
+function wp_my_ai_chat_options_page() {
+    add_menu_page(
+        'My AI Chat Settings',
+        'AI Chat',
+        'manage_options',
+        'my_ai_chat',
+        'wporg_my_ai_chat_options_page_html',
+        'dashicons-format-status',
+        40
+    );
+}
+
+// Регистрируем опции в базе данных WordPress
+add_action( 'admin_init', 'my_ai_chat_register_settings' );
+function my_ai_chat_register_settings() {
+    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_system_prompt' );
+    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_context_template' );
+    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_ollama_url' );
+    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_model_name' );
+    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_temperature' );
+    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_qdrant_api_url' );
+    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_qdrant_collection_name' );
+    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_embedding_vector_size' );
+}
+
+// Рендеринг страницы настроек через файл view.php
+function wporg_my_ai_chat_options_page_html() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        return;
+    }
+    include plugin_dir_path(__FILE__) . 'admin/view.php';
 }
