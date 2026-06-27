@@ -13,6 +13,7 @@ $temperature     = get_option( 'my_ai_chat_temperature', '0.3' );
 $qdrant_api_url  = get_option( 'my_ai_chat_qdrant_api_url', 'http://host.docker.internal:6333' );
 $qdrant_collection_name     = get_option( 'my_ai_chat_qdrant_collection_name', 'wp_products_collection' );
 $embedding_vector_size     = get_option( 'my_ai_chat_embedding_vector_size', 768 );
+$model_embed 	 = get_option( 'my_ai_chat_model_embed', 'nomic-embed-text');
 ?>
 
 <div class="wrap">
@@ -65,6 +66,13 @@ $embedding_vector_size     = get_option( 'my_ai_chat_embedding_vector_size', 768
                 <td>
                     <input type="number" id="my_ai_chat_temperature" name="my_ai_chat_temperature" value="<?php echo esc_attr( $temperature ); ?>" step="0.1" min="0" max="1" class="small-text">
                     <p class="description">Чем ниже значение (например, 0.2), тем строже бот следует контексту и точнее выводит ссылки. Высокие значения добавят фантазии.</p>
+                </td>
+            </tr>
+            <tr>
+                <th scope="row"><label for="my_ai_chat_temperature">Модель для embending</label></th>
+                <td>
+                    <input type="text" id="my_ai_chat_model_embed" name="my_ai_chat_model_embed" value="<?php echo esc_attr( $model_embed ); ?>" class="regular-text code">
+                    <p class="description">МОдель для создания embed</p>
                 </td>
             </tr>
         </table>

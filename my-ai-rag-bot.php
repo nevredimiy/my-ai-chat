@@ -32,6 +32,10 @@ function get_my_ai_chat_vector_size() {
     return (int) get_option( 'my_ai_chat_embedding_vector_size', 768 );
 }
 
+function get_my_ai_chat_model_embed() {
+    return get_option( 'my_ai_chat_model_embed', 'nomic-embed-text' );
+}
+
 // Хук активации плагина: сработает, когда вы переактивируете плагин в админке WordPress
 register_activation_hook( __FILE__, 'ai_chat_initialize_vector_db' );
 
@@ -346,7 +350,7 @@ function ai_chat_handle_post_save( $post_id, $post, $update ) {
     $ollama_response = wp_remote_post( get_my_ai_chat_ollama_url() . '/embeddings', array(
         'headers' => array( 'Content-Type' => 'application/json' ),
         'body'    => json_encode( array(
-            'model'  => 'nomic-embed-text',
+            'model'  => get_my_ai_chat_model_embed(),
             'prompt' => $text_to_embed
         ) ),
         'timeout' => 90
@@ -363,13 +367,13 @@ function ai_chat_handle_post_save( $post_id, $post, $update ) {
         wp_die( 'Ollama не вернула вектор. Ответ сервера: ' . wp_remote_retrieve_body( $ollama_response ) );
     }
 
-    // 4. Отправка вектора в Qdrant
+    // 4. Отправка вектора в Qdrant (Используем чистый URL без /points в конце, его добавим ниже)
     $qdrant_url = get_my_ai_chat_qdrant_url() . '/collections/' . get_my_ai_chat_collection_name() . '/points?wait=true';
 
     $qdrant_body = array(
         'points' => array(
             array(
-                'id'      => $post_id,
+                'id'      => (int) $post_id, // Явно приводим ID к числу
                 'vector'  => $vector,
                 'payload' => array(
                     'post_type' => $post->post_type,
@@ -379,19 +383,24 @@ function ai_chat_handle_post_save( $post_id, $post, $update ) {
         )
     );
 
+    // Изменяем на POST — это самый надежный способ для операции Upsert в Qdrant
     $qdrant_response = wp_remote_request( $qdrant_url, array(
-        'method'  => 'PUT',
+        'method'  => 'POST', 
         'headers' => array( 'Content-Type' => 'application/json' ),
         'body'    => json_encode( $qdrant_body ),
         'timeout' => 10
     ) );
 
     if ( is_wp_error( $qdrant_response ) ) {
-        error_log( 'AI Bot Error: Не удалось отправить вектор в Qdrant: ' . $qdrant_response->get_error_message() );
+        $err_msg = $qdrant_response->get_error_message();
+        error_log( 'AI Bot Error: Не удалось отправить вектор в Qdrant: ' . $err_msg );
+        WP_CLI::warning( "Ошибка cURL для ID {$post_id}: {$err_msg}" ); // Выводим в консоль WP-CLI
     } else {
         $code = wp_remote_retrieve_response_code( $qdrant_response );
         if ( $code !== 200 ) {
-            error_log( "AI Bot Error: Qdrant вернул код ответа {$code}" );
+            $body = wp_remote_retrieve_body( $qdrant_response );
+            error_log( "AI Bot Error: Qdrant вернул код ответа {$code}. Тело: {$body}" );
+            WP_CLI::warning( "Qdrant отверг ID {$post_id} (Код {$code}). Ответ базы: {$body}" ); // Выводим в консоль WP-CLI
         }
     }
 }
@@ -422,6 +431,31 @@ class AI_Bot_CLI_Commands {
      * @param array $assoc_args Именованные аргументы (например, --batch_size)
      */
     public function index( $args, $assoc_args ) {
+
+        // 1. Получаем имя модели эмбеддинга из настроек (или дефолтное)
+        // Если у тебя имя модели захардкожено, замени на свою строку, например 'nomic-embed-text'
+        $embedding_model = get_option( 'my_ai_chat_ollama_embedding_model', 'nomic-embed-text' );
+        $llm_model       = get_option( 'my_ai_chat_model_name', 'qwen2.5:1.5b' );
+
+        WP_CLI::line( "Проверка готовности окружения..." );
+
+        // 2. Проверяем модель эмбеддингов
+        if ( ! my_ai_chat_check_ollama_model( $embedding_model ) ) {
+            WP_CLI::error( 
+                "Критическая ошибка: Модель эмбеддингов '{$embedding_model}' не найдена в Ollama!\n" .
+                "Пожалуйста, скачайте её на ноутбук, выполнив в терминале команду:\n" .
+                "ollama pull {$embedding_model}"
+            );
+        }
+
+        // 3. Заодно проверяем и основную LLM модель (Qwen)
+        if ( ! my_ai_chat_check_ollama_model( $llm_model ) ) {
+            WP_CLI::error( 
+                "Критическая ошибка: Основная модель '{$llm_model}' не найдена в Ollama!\n" .
+                "Пожалуйста, скачайте её, выполнив в терминале команду:\n" .
+                "ollama pull {$llm_model}"
+            );
+        }
 
         // Подстраховка: если параметр не передан, берем 50 по умолчанию
         $batch_size = isset( $assoc_args['batch_size'] ) ? intval( $assoc_args['batch_size'] ) : 50;
@@ -492,7 +526,7 @@ class AI_Bot_CLI_Commands {
                 $ollama_response = wp_remote_post( get_my_ai_chat_ollama_url() . '/embeddings', array(
                     'headers' => array( 'Content-Type' => 'application/json' ),
                     'body'    => json_encode( array(
-                        'model'  => 'nomic-embed-text',
+                        'model'  => get_my_ai_chat_model_embed(),
                         'prompt' => $text_to_embed
                     ) ),
                     'timeout' => 90
@@ -610,7 +644,7 @@ function ai_chat_search_similar_content( $query_text, $limit = 3 ) {
     $ollama_response = wp_remote_post( get_my_ai_chat_ollama_url() . '/embeddings', array(
         'headers' => array( 'Content-Type' => 'application/json' ),
         'body'    => json_encode( array(
-            'model'  => 'nomic-embed-text',
+            'model'  => get_my_ai_chat_model_embed(),
             'prompt' => $query_text
         ) ),
         'timeout' => 15
@@ -797,6 +831,7 @@ function my_ai_chat_register_settings() {
     register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_qdrant_api_url' );
     register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_qdrant_collection_name' );
     register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_embedding_vector_size' );
+    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_model_embed' );
 }
 
 // Рендеринг страницы настроек через файл view.php
@@ -805,4 +840,40 @@ function wporg_my_ai_chat_options_page_html() {
         return;
     }
     include plugin_dir_path(__FILE__) . 'admin/view.php';
+}
+
+/**
+ * Проверяет, установлена ли конкретная модель в Ollama.
+ *
+ * @param string $model_name Название модели для проверки.
+ * @return bool True, если модель найдена, иначе false.
+ */
+function my_ai_chat_check_ollama_model( $model_name ) {
+    $ollama_url = get_my_ai_chat_ollama_url(); // Получаем URL с /api на конце
+    
+    // Эндпоинт Ollama для вывода списка моделей: /api/tags
+    // Но так как функция get_my_ai_chat_ollama_url() уже возвращает урл с /api,
+    // мы просто убираем дублирование, если оно есть.
+    $tags_url = str_replace('/api/api', '/api', $ollama_url . '/tags');
+
+    $response = wp_remote_get( $tags_url, array( 'timeout' => 10 ) );
+
+    if ( is_wp_error( $response ) ) {
+        return false; // Если Ollama вообще выключена
+    }
+
+    $body = wp_remote_retrieve_body( $response );
+    $data = json_encode( json_decode( $body ), true ); // Декодируем список моделей
+    $data = json_decode($body, true);
+
+    if ( ! empty( $data['models'] ) ) {
+        foreach ( $data['models'] as $model ) {
+            // Ollama может возвращать имя как 'model:latest', поэтому проверяем вхождение
+            if ( $model['name'] === $model_name || strpos( $model['name'], $model_name . ':' ) === 0 ) {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
