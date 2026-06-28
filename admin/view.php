@@ -104,3 +104,15 @@ $model_embed 	 = get_option( 'my_ai_chat_model_embed', 'nomic-embed-text');
         <?php submit_button( 'Сохранить настройки' ); ?>
     </form>
 </div>
+<div class="wrap">
+    <h2>Управление индексом AI Bot</h2>
+    <div class="card" style="max-width: 600px; margin-top: 20px; padding: 15px;">
+        <h3>Полная переиндексация сайта</h3>
+        <p>Нажмите кнопку ниже, чтобы запустить массовую переиндексацию всех товаров, страниц и записей в векторную базу Qdrant в фоновом режиме.</p>
+        
+        <form method="post" action="">
+            <?php wp_nonce_field( 'ai_bot_mass_index_action', 'ai_bot_nonce' ); ?>
+            <input type="submit" name="ai_bot_start_mass_index" id="submit" class="button button-primary button-large" value="Запустить индексацию базы данных">
+        </form>
+    </div>
+</div>

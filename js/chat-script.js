@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!response.ok) throw new Error('Ошибка сервера');
 
             const data = await response.json();
-            botMessageElement.innerText = data.answer || 'Нет ответа.';
+            botMessageElement.innerHTML = data.answer || 'Нет ответа.';
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
         } catch (error) {
