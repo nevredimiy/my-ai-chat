@@ -1,11 +1,17 @@
 <?php
 /**
  * Plugin Name: My Custom AI RAG Bot
- * Description: Самописный чат-бот с ответами по базе сайта и товарам WooCommerce.
+ * Description: AI chatbot with answers based on site content and WooCommerce products.
  * Version: 1.1
+ * Text Domain: my-ai-chat
+ * Domain Path: /languages
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
+
+add_action( 'plugins_loaded', function() {
+    load_plugin_textdomain( 'my-ai-chat', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+} );
 
 // ==========================================
 // ДИНАМИЧЕСКИЕ НАСТРОЙКИ ИНФРАСТРУКТУРЫ
@@ -36,8 +42,20 @@ function get_my_ai_chat_model_embed() {
     return get_option( 'my_ai_chat_model_embed', 'nomic-embed-text' );
 }
 
+function my_ai_chat_default_system_prompt() {
+    return __( "You are a strict and polite assistant-consultant in an online store. Your task is to answer user questions based on the provided product CONTEXT.\nLINK RULE: You must use the link EXACTLY as specified in the 'Link:' field. Do not modify it. Write the product name, and put the exact link in parentheses next to it.", 'my-ai-chat' );
+}
+
+function my_ai_chat_default_context_template() {
+    return __( 'Use the following information about products and site pages to answer the question. If the context does not have the required product, say it is not in stock.', 'my-ai-chat' );
+}
+
+function my_ai_chat_default_product_card_template() {
+    return __( "<strong>We have this product!</strong><br>\nProduct: {title}<br>\nPrice: {price}<br>\nLink: <a href=\"{permalink}\" target=\"_blank\">Go to product</a><br><br>", 'my-ai-chat' );
+}
+
 /**
- * Проверяет, установлена ли конкретная модель в Ollama.
+ * Checks whether a specific model is installed in Ollama.
  */
 function my_ai_chat_check_ollama_model( $model_name ) {
     $ollama_url = get_my_ai_chat_ollama_url();
@@ -61,7 +79,7 @@ function my_ai_chat_check_ollama_model( $model_name ) {
     return false;
 }
 
-// Хук активации плагина
+// Plugin activation hook
 register_activation_hook( __FILE__, 'ai_chat_initialize_vector_db' );
 
 function ai_chat_initialize_vector_db() {
@@ -87,18 +105,23 @@ function ai_chat_initialize_vector_db() {
     ) );
 
     if ( is_wp_error( $response ) ) {
-        error_log( 'AI RAG Bot Error: Не удалось связаться с Qdrant: ' . $response->get_error_message() );
+        error_log( 'AI RAG Bot Error: Failed to connect to Qdrant: ' . $response->get_error_message() );
     }
 }
 
-// Подключаем стили и скрипты
+// Enqueue styles and scripts
 add_action( 'wp_enqueue_scripts', 'ai_chat_enqueue_assets' );
 function ai_chat_enqueue_assets() {
     wp_enqueue_style( 'ai-chat-style', plugins_url( 'css/chat-style.css', __FILE__ ), array(), filemtime( plugin_dir_path( __FILE__ ) . 'css/chat-style.css' ) );
     wp_enqueue_script( 'ai-chat-script', plugins_url( 'js/chat-script.js', __FILE__ ), array(), filemtime( plugin_dir_path( __FILE__ ) . 'js/chat-script.js' ), true );
+    wp_localize_script( 'ai-chat-script', 'aiChatL10n', array(
+        'serverError'     => __( 'Server error', 'my-ai-chat' ),
+        'noAnswer'        => __( 'No answer.', 'my-ai-chat' ),
+        'connectionError' => __( 'Connection error with server.', 'my-ai-chat' ),
+    ) );
 }
 
-// Выводим HTML-шаблон в футер
+// Output HTML template in footer
 add_action( 'wp_footer', 'render_ai_chat_widget' );
 function render_ai_chat_widget() {
     if ( file_exists( plugin_dir_path( __FILE__ ) . 'chat-template.php' ) ) {
@@ -148,7 +171,7 @@ function my_ai_chat_can_ping_ollama( $test_url ) {
     return in_array( $code, array( 200, 301, 302 ), true );
 }
 
-// Создаем эндпоинт для чата
+// REST API endpoint
 add_action( 'rest_api_init', function () {
     register_rest_route( 'aibot/v1', '/chat', array(
         'methods'             => 'POST',
@@ -163,7 +186,7 @@ function ai_chat_rest_handle_message( WP_REST_Request $request ) {
     $user_question = !empty($params['question']) ? sanitize_text_field($params['question']) : '';
 
     if ( empty( $user_question ) ) {
-        return new WP_REST_Response( array( 'answer' => 'Вопрос пуст' ), 400 );
+        return new WP_REST_Response( array( 'answer' => __( 'Question is empty', 'my-ai-chat' ) ), 400 );
     }
 
     $bot_answer = ai_chat_generate_rag_response( $user_question );
@@ -174,28 +197,24 @@ function ai_chat_rest_handle_message( WP_REST_Request $request ) {
 // АВТОМАТИЧЕСКАЯ СИНХРОНИЗАЦИЯ (КРОН И ХУКИ)
 // ==========================================
 
-// 1. Хуки планирования при сохранении контента
 add_action( 'save_post', 'ai_chat_handle_post_save_schedule', 10, 3 );
-add_action( 'woocommerce_update_product', 'ai_chat_handle_product_save_schedule', 10, 1 ); // Родной хук для товаров
+add_action( 'woocommerce_update_product', 'ai_chat_handle_product_save_schedule', 10, 1 );
 
 function ai_chat_handle_post_save_schedule( $post_id, $post, $update ) {
     if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) return;
     if ( wp_is_post_revision( $post_id ) ) return;
     if ( ! $post || $post->post_status !== 'publish' ) return;
 
-    // Для товаров используем отдельный хук woocommerce_update_product
     if ( $post->post_type === 'product' ) return;
 
     $allowed_types = array( 'post', 'page' );
     if ( ! in_array( $post->post_type, $allowed_types ) ) return;
 
-    // Планируем задачу (если её ещё нет в очереди)
     if ( ! wp_next_scheduled( 'my_ai_bot_index_single_post_cron', array( $post_id ) ) ) {
         wp_schedule_single_event( time(), 'my_ai_bot_index_single_post_cron', array( $post_id ) );
     }
 }
 
-// Отдельная функция для отлова сохранения товаров WooCommerce
 function ai_chat_handle_product_save_schedule( $product_id ) {
     $product = wc_get_product( $product_id );
     if ( ! $product || $product->get_status() !== 'publish' ) return;
@@ -205,7 +224,6 @@ function ai_chat_handle_product_save_schedule( $product_id ) {
     }
 }
 
-// 2. Выполнение фоновой индексации
 add_action( 'my_ai_bot_index_single_post_cron', 'ai_chat_execute_background_indexing' );
 function ai_chat_execute_background_indexing( $post_id ) {
     $post = get_post( $post_id );
@@ -221,26 +239,25 @@ function ai_chat_execute_background_indexing( $post_id ) {
             $price = wp_strip_all_tags( $product->get_price_html() );
             $price = html_entity_decode( $price, ENT_QUOTES, 'UTF-8' );
             $sku = $product->get_sku();
-            
-            $text_to_embed = "Товар: {$title}. ";
-            if ( ! empty( $sku ) ) $text_to_embed .= "Артикул: {$sku}. ";
-            $text_to_embed .= "Цена: {$price}. Описание: {$content}"; // Исправили 'Prices:' на 'Цена:' как в CLI
+
+            $text_to_embed = __( 'Product', 'my-ai-chat' ) . ": {$title}. ";
+            if ( ! empty( $sku ) ) $text_to_embed .= __( 'SKU', 'my-ai-chat' ) . ": {$sku}. ";
+            $text_to_embed .= __( 'Price', 'my-ai-chat' ) . ": {$price}. " . __( 'Description', 'my-ai-chat' ) . ": {$content}";
         }
     } else {
-        $type_label = ( $post->post_type === 'page' ) ? 'Страница' : 'Статья';
-        $text_to_embed = "{$type_label}: {$title}. Текст: {$content}";
+        $type_label = ( $post->post_type === 'page' ) ? __( 'Page', 'my-ai-chat' ) : __( 'Article', 'my-ai-chat' );
+        $text_to_embed = "{$type_label}: {$title}. " . __( 'Text', 'my-ai-chat' ) . ": {$content}";
     }
 
     if ( empty( $text_to_embed ) ) {
-        error_log("AI Bot Cron Error: Текст для эмбеддинга пуст (ID {$post_id})");
+        error_log("AI Bot Cron Error: Empty embedding text (ID {$post_id})");
         return;
     }
 
-    // Запрос в Ollama
     $ollama_response = wp_remote_post( get_my_ai_chat_ollama_url() . '/embeddings', array(
         'headers' => array( 'Content-Type' => 'application/json' ),
         'body'    => json_encode( array(
-            'model'  => get_option( 'my_ai_chat_model_embed', 'nomic-embed-text' ), // Перевели на дефолтную опцию
+            'model'  => get_option( 'my_ai_chat_model_embed', 'nomic-embed-text' ),
             'prompt' => $text_to_embed
         ) ),
         'timeout' => 90
@@ -255,11 +272,10 @@ function ai_chat_execute_background_indexing( $post_id ) {
     $vector = $ollama_body['embedding'] ?? null;
 
     if ( ! is_array( $vector ) ) {
-        error_log( 'AI Bot Cron Error: Ollama не вернула вектор для ID ' . $post_id );
+        error_log( 'AI Bot Cron Error: Ollama returned no vector for ID ' . $post_id );
         return;
     }
-    
-    // Отправка в Qdrant
+
     $qdrant_url = get_my_ai_chat_qdrant_url() . '/collections/' . get_my_ai_chat_collection_name() . '/points?wait=true';
     $qdrant_body = array(
         'points' => array(
@@ -277,24 +293,24 @@ function ai_chat_execute_background_indexing( $post_id ) {
     );
 
     $qdrant_response = wp_remote_request( $qdrant_url, array(
-        'method'  => 'PUT', // ИЗМЕНИЛИ НА PUT, чтобы Qdrant принимал /points
+        'method'  => 'PUT',
         'headers' => array( 'Content-Type' => 'application/json' ),
         'body'    => json_encode( $qdrant_body ),
         'timeout' => 15
     ) );
 
     if ( is_wp_error( $qdrant_response ) ) {
-        error_log( "AI Bot Cron Qdrant Error для ID {$post_id}: " . $qdrant_response->get_error_message() );
+        error_log( "AI Bot Cron Qdrant Error for ID {$post_id}: " . $qdrant_response->get_error_message() );
     } else {
         $code = wp_remote_retrieve_response_code( $qdrant_response );
         if ( $code !== 200 ) {
             $body = wp_remote_retrieve_body( $qdrant_response );
-            error_log( "AI Bot Cron Qdrant Error: Код {$code} для ID {$post_id}. Ответ: {$body}" );
+            error_log( "AI Bot Cron Qdrant Error: Code {$code} for ID {$post_id}. Response: {$body}" );
         }
     }
 }
 
-// 3. Автоматическое УДАЛЕНИЕ из векторной базы при удалении в WP
+// Auto-delete from vector DB when post deleted in WP
 add_action( 'wp_trash_post', 'ai_chat_delete_post_from_qdrant' );
 add_action( 'before_delete_post', 'ai_chat_delete_post_from_qdrant' );
 function ai_chat_delete_post_from_qdrant( $post_id ) {
@@ -307,11 +323,11 @@ function ai_chat_delete_post_from_qdrant( $post_id ) {
         'body'    => json_encode( $qdrant_body ),
         'timeout' => 10
     ) );
-    error_log( "AI Bot: Объект ID {$post_id} удален из Qdrant через хук." );
+    error_log( "AI Bot: Object ID {$post_id} deleted from Qdrant via hook." );
 }
 
 // ==========================================
-// РЕГИСТРАЦИЯ И СТРУКТУРА WP-CLI КОМАНДЫ
+// WP-CLI COMMANDS
 // ==========================================
 
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
@@ -324,29 +340,29 @@ class AI_Bot_CLI_Commands {
         $embedding_model = get_option( 'my_ai_chat_model_embed', 'nomic-embed-text' );
         $llm_model       = get_option( 'my_ai_chat_model_name', 'qwen2.5:1.5b' );
 
-        WP_CLI::line( "Проверка готовности окружения..." );
+        WP_CLI::line( __( 'Checking environment readiness...', 'my-ai-chat' ) );
 
         if ( ! my_ai_chat_check_ollama_model( $embedding_model ) ) {
-            WP_CLI::error( "Критическая ошибка: Модель эмбеддингов '{$embedding_model}' не найдена!\nВыполните: ollama pull {$embedding_model}" );
+            WP_CLI::error( sprintf( __( "Critical error: Embedding model '%s' not found!\nRun: ollama pull %s", 'my-ai-chat' ), $embedding_model, $embedding_model ) );
         }
         if ( ! my_ai_chat_check_ollama_model( $llm_model ) ) {
-            WP_CLI::error( "Критическая ошибка: Модель '{$llm_model}' не найдена!\nВыполните: ollama pull {$llm_model}" );
+            WP_CLI::error( sprintf( __( "Critical error: Model '%s' not found!\nRun: ollama pull %s", 'my-ai-chat' ), $llm_model, $llm_model ) );
         }
 
-        WP_CLI::line( "Проверяем/создаем коллекцию в Qdrant..." );
+        WP_CLI::line( __( 'Checking/creating collection in Qdrant...', 'my-ai-chat' ) );
         ai_chat_initialize_vector_db();
 
         $batch_size = isset( $assoc_args['batch_size'] ) ? intval( $assoc_args['batch_size'] ) : 50;
         if ( $batch_size <= 0 ) $batch_size = 50;
-        
-        WP_CLI::log( WP_CLI::colorize( "%BЗапуск массовой индексации контента в Qdrant...%n" ) );
-        
+
+        WP_CLI::log( WP_CLI::colorize( '%B' . __( 'Starting bulk content indexing in Qdrant...', 'my-ai-chat' ) . '%n' ) );
+
         $query_args = array(
             'post_type'              => array( 'post', 'page', 'product' ),
             'post_status'            => 'publish',
             'posts_per_page'         => -1,
             'fields'                 => 'ids',
-            'no_found_rows'          => true, // Отключаем подсчет страниц для ускорения
+            'no_found_rows'          => true,
             'update_post_meta_cache' => false,
             'update_post_term_cache' => false,
         );
@@ -355,11 +371,11 @@ class AI_Bot_CLI_Commands {
         $total_count    = count( $all_post_ids );
 
         if ( $total_count === 0 ) {
-            WP_CLI::error( "Нет опубликованных объектов для индексации." );
+            WP_CLI::error( __( 'No published items found for indexing.', 'my-ai-chat' ) );
         }
 
-        WP_CLI::log( "Найдено объектов для обработки: " . $total_count );
-        $progress = \WP_CLI\Utils\make_progress_bar( 'Индексация', $total_count );
+        WP_CLI::log( __( 'Items found for processing: ', 'my-ai-chat' ) . $total_count );
+        $progress = \WP_CLI\Utils\make_progress_bar( __( 'Indexing', 'my-ai-chat' ), $total_count );
         $batches = array_chunk( $all_post_ids, $batch_size );
 
         foreach ( $batches as $batch ) {
@@ -377,13 +393,13 @@ class AI_Bot_CLI_Commands {
                         $price = wp_strip_all_tags( $product->get_price_html() );
                         $price = html_entity_decode( $price, ENT_QUOTES, 'UTF-8' );
                         $sku = $product->get_sku();
-                        $text_to_embed = "Товар: {$title}. ";
-                        if ( ! empty( $sku ) ) $text_to_embed .= "Артикул: {$sku}. ";
-                        $text_to_embed .= "Цена: {$price}. Описание: {$content}";
+                        $text_to_embed = __( 'Product', 'my-ai-chat' ) . ": {$title}. ";
+                        if ( ! empty( $sku ) ) $text_to_embed .= __( 'SKU', 'my-ai-chat' ) . ": {$sku}. ";
+                        $text_to_embed .= __( 'Price', 'my-ai-chat' ) . ": {$price}. " . __( 'Description', 'my-ai-chat' ) . ": {$content}";
                     }
                 } else {
-                    $type_label = ( $post->post_type === 'page' ) ? 'Страница' : 'Статья';
-                    $text_to_embed = "{$type_label}: {$title}. Текст: {$content}";
+                    $type_label = ( $post->post_type === 'page' ) ? __( 'Page', 'my-ai-chat' ) : __( 'Article', 'my-ai-chat' );
+                    $text_to_embed = "{$type_label}: {$title}. " . __( 'Text', 'my-ai-chat' ) . ": {$content}";
                 }
 
                 if ( empty( $text_to_embed ) ) { $progress->tick(); continue; }
@@ -400,7 +416,6 @@ class AI_Bot_CLI_Commands {
                 $vector = $ollama_body['embedding'] ?? null;
                 if ( ! is_array( $vector ) ) { $progress->tick(); continue; }
 
-                // ФОРМИРУЕМ ПРАВИЛЬНОЕ ТЕЛО ДЛЯ QDRANT
                 $qdrant_body = array(
                     'points' => array(
                         array(
@@ -408,7 +423,7 @@ class AI_Bot_CLI_Commands {
                             'vector'  => $vector,
                             'payload' => array(
                                 'post_type'  => $post->post_type,
-                                'post_title' => $title, // Сохраняем оригинальное название для вывода в поиске
+                                'post_title' => $title,
                                 'title'      => $title,
                                 'text'       => $text_to_embed
                             )
@@ -426,12 +441,12 @@ class AI_Bot_CLI_Commands {
                 ) );
 
                 if ( is_wp_error( $qdrant_response ) ) {
-                    WP_CLI::warning( "\nОшибка cURL для ID {$post_id}: " . $qdrant_response->get_error_message() );
+                    WP_CLI::warning( "\n" . sprintf( __( 'cURL error for ID %d: ', 'my-ai-chat' ), $post_id ) . $qdrant_response->get_error_message() );
                 } else {
                     $code = wp_remote_retrieve_response_code( $qdrant_response );
                     if ( $code !== 200 ) {
                         $body = wp_remote_retrieve_body( $qdrant_response );
-                        WP_CLI::warning( "\nQdrant вернул код {$code} для ID {$post_id}. Ответ: {$body}" );
+                        WP_CLI::warning( "\n" . sprintf( __( 'Qdrant returned code %d for ID %d. Response: ', 'my-ai-chat' ), $code, $post_id ) . $body );
                     }
                 }
 
@@ -441,29 +456,29 @@ class AI_Bot_CLI_Commands {
         }
 
         $progress->finish();
-        WP_CLI::success( "Индексация успешно завершена!" );
+        WP_CLI::success( __( 'Indexing completed successfully!', 'my-ai-chat' ) );
     }
 
     public function search( $args, $assoc_args ) {
         if ( empty( $args[0] ) ) {
-            WP_CLI::error( "Ви забыли вказати пошуковий запит." );
+            WP_CLI::error( __( 'You forgot to specify a search query.', 'my-ai-chat' ) );
         }
         $query_text = $args[0];
-        WP_CLI::log( "Ищем: " . $query_text );
+        WP_CLI::log( __( 'Searching: ', 'my-ai-chat' ) . $query_text );
         $results = ai_chat_search_similar_content( $query_text, 3 );
         if ( empty( $results ) ) {
-            WP_CLI::error( "Ничего не найдено." );
+            WP_CLI::error( __( 'Nothing found.', 'my-ai-chat' ) );
         }
         foreach ( $results as $item ) {
-            WP_CLI::log( sprintf( "- [ID %d] %s (Схожесть: %0.4f)", $item['id'], $item['title'], $item['score'] ) );
+            WP_CLI::log( sprintf( "- [ID %d] %s (Score: %0.4f)", $item['id'], $item['title'], $item['score'] ) );
         }
     }
 
     public function ask( $args, $assoc_args ) {
         $question = $args[0];
-        WP_CLI::log( "Вопрос боту: " . $question );
+        WP_CLI::log( __( 'Question to bot: ', 'my-ai-chat' ) . $question );
         $response = ai_chat_generate_rag_response( $question );
-        WP_CLI::log( "\n================ ОТВЕТ БОТА ================" );
+        WP_CLI::log( "\n================ " . __( 'BOT ANSWER', 'my-ai-chat' ) . " ================" );
         WP_CLI::log( $response );
         WP_CLI::log( "============================================" );
     }
@@ -503,7 +518,8 @@ function ai_chat_search_similar_content( $query_text, $limit = 3 ) {
         $found_items[] = array(
             'id'    => $point['id'],
             'score' => $point['score'],
-            'title' => $point['payload']['title'] ?? 'Без названия'
+            'title' => $point['payload']['title'] ?? __( 'No title', 'my-ai-chat' ),
+            'text'  => $point['payload']['text'] ?? '',
         );
     }
     return $found_items;
@@ -515,37 +531,35 @@ function ai_chat_generate_rag_response( $user_question ) {
     }
 
     error_log( "== AI BOT REST API START ==" );
-    error_log( "Вопрос пользователя: " . $user_question );
+    error_log( "User question: " . $user_question );
 
     $similar_items = ai_chat_search_similar_content( $user_question, 3 );
-    error_log( "Результаты поиска из Qdrant: " . print_r( $similar_items, true ) );
-    
+    error_log( "Qdrant search results: " . print_r( $similar_items, true ) );
+
     if ( empty( $similar_items ) ) {
-        return "К сожалению, я не нашёл информации по вашему запросу на сайте.";
+        return __( 'Sorry, I found no information for your query on the site.', 'my-ai-chat' );
     }
 
    $context = '';
    $use_system_answer = get_option( 'my_ai_chat_use_system_answer', '1' );
 
-    if(!$use_system_answer){
+    if ( ! $use_system_answer ) {
         foreach ( $similar_items as $item ) {
             $post_id = $item['id'];
             $permalink = get_permalink( $post_id );
-            
+
             if ( get_post_type( $post_id ) === 'product' ) {
                 $product = wc_get_product( $post_id );
-                
+
                 if ( $product ) {
-                    // Очищаем цену от лишней разметки woo, оставляя чистый текст (например, "30.00 ₴")
                     $price = wp_strip_all_tags( $product->get_price_html() );
                     $price = html_entity_decode( $price, ENT_QUOTES, 'UTF-8' );
-                    
+
                     $title = get_the_title( $post_id );
 
-                    // Формируем HTML-блок по шаблону из настроек
                     $card_template = get_option(
                         'my_ai_chat_product_card_template',
-                        "<strong>Есть такой товар!</strong><br>\nТовар: {title}<br>\nЦена: {price}<br>\nСсылка: <a href=\"{permalink}\" target=\"_blank\">Перейти к товару</a><br><br>"
+                        my_ai_chat_default_product_card_template()
                     );
                     $context .= str_replace(
                         [ '{title}', '{price}', '{permalink}' ],
@@ -556,43 +570,41 @@ function ai_chat_generate_rag_response( $user_question ) {
             }
         }
 
-        return !empty($context) ? $context : 'К сожалению, ничего не найдено.';
+        return ! empty( $context ) ? $context : __( 'Sorry, nothing was found.', 'my-ai-chat' );
     } else {
 
-        // 1. Собираем контекст из найденных объектов Qdrant
         $context_text = "";
         foreach ( $similar_items as $item ) {
             $post_id = $item['id'];
             $permalink = get_permalink( $post_id );
-            
-            // Берем текст из payload (или title, если текста нет)
+
             $payload_text = $item['text'] ?? $item['title'];
-            
-            $context_text .= "Документ/Товар (Ссылка: {$permalink}):\n{$payload_text}\n\n";
+
+            $context_text .= sprintf( __( 'Document/Product (Link: %s):', 'my-ai-chat' ), $permalink ) . "\n{$payload_text}\n\n";
         }
 
-        // 2. Берём настройки промпта и модели из опций WP
-        $system_prompt = get_option( 'my_ai_chat_system_prompt', 'Ты — полезный ассистент магазина. Отвечай коротко и по делу. Если в контексте есть подходящие товары, обязательно давай на них прямые ссылки.' );
+        $system_prompt = get_option( 'my_ai_chat_system_prompt', my_ai_chat_default_system_prompt() );
         $llm_model     = get_option( 'my_ai_chat_model_name', 'qwen2.5:1.5b' );
 
-        // Формируем финальный промпт для Ollama /api/generate
-        $full_prompt = "Системная инструкция: {$system_prompt}\n\nКонтекст сайта:\n{$context_text}\nВопрос пользователя: {$user_question}\nОтвет:";
+        $full_prompt = __( 'System instruction:', 'my-ai-chat' ) . " {$system_prompt}\n\n" .
+                       __( 'Site context:', 'my-ai-chat' ) . "\n{$context_text}\n" .
+                       __( 'User question:', 'my-ai-chat' ) . " {$user_question}\n" .
+                       __( 'Answer:', 'my-ai-chat' );
 
-        // 3. Делаем запрос к Ollama
         $ollama_url = rtrim( get_my_ai_chat_ollama_url(), '/' ) . '/generate';
 
         $request_body = array(
             'model'  => $llm_model,
             'prompt' => $full_prompt,
-            'stream' => false, // Ждем ответ целиком
+            'stream' => false,
         );
 
         error_log("AI Bot Sending to Ollama URL: " . $ollama_url);
         error_log("AI Bot Sending Body: " . json_encode($request_body, JSON_UNESCAPED_UNICODE));
 
         $ollama_response = wp_remote_request( $ollama_url, array(
-            'method'      => 'POST', // Явно задаем метод POST через wp_remote_request
-            'headers'     => array( 
+            'method'      => 'POST',
+            'headers'     => array(
                 'Content-Type' => 'application/json',
                 'Accept'       => 'application/json'
             ),
@@ -603,7 +615,7 @@ function ai_chat_generate_rag_response( $user_question ) {
 
         if ( is_wp_error( $ollama_response ) ) {
             error_log( 'AI Bot Ollama Error: ' . $ollama_response->get_error_message() );
-            return 'Извините, произошла ошибка связи с нейросети.';
+            return __( 'Sorry, there was an error communicating with the neural network.', 'my-ai-chat' );
         }
 
         $response_code = wp_remote_retrieve_response_code( $ollama_response );
@@ -613,14 +625,14 @@ function ai_chat_generate_rag_response( $user_question ) {
         error_log("AI Bot Ollama Response Body: " . $response_body);
 
         if ( $response_code !== 200 ) {
-            return "Ошибка Ollama (Код {$response_code}): " . substr($response_body, 0, 100);
+            return sprintf( __( 'Ollama Error (Code %d): ', 'my-ai-chat' ), $response_code ) . substr($response_body, 0, 100);
         }
 
         $ollama_data = json_decode( $response_body, true );
         $bot_response = $ollama_data['response'] ?? null;
 
         if ( empty( $bot_response ) ) {
-            return 'Не удалось распарсить ответ от модели.';
+            return __( 'Failed to parse the response from the model.', 'my-ai-chat' );
         }
 
         return trim( $bot_response );
@@ -628,25 +640,23 @@ function ai_chat_generate_rag_response( $user_question ) {
 }
 
 add_action( 'wp_ajax_ai_chat_message', 'ai_chat_ajax_handler' );
-add_action( 'wp_ajax_nopriv_ai_chat_message', 'ai_chat_ajax_handler' ); // Чтобы работало и для гостей
+add_action( 'wp_ajax_nopriv_ai_chat_message', 'ai_chat_ajax_handler' );
 
 function ai_chat_ajax_handler() {
-    // Проверка nonce-защиты для безопасности
     check_ajax_referer( 'ai_chat_nonce', 'nonce' );
 
     $message = isset( $_POST['message'] ) ? sanitize_text_field( $_POST['message'] ) : '';
-    
+
     if ( empty( $message ) ) {
-        wp_send_json_error( 'Пустое сообщение' );
+        wp_send_json_error( __( 'Empty message', 'my-ai-chat' ) );
     }
 
-    // Вызываем наш готовый RAG
     $response = ai_chat_generate_rag_response( $message );
 
     wp_send_json_success( $response );
 }
 
-// Регистрируем меню в админке
+// Register admin menu
 add_action( 'admin_menu', 'wp_my_ai_chat_options_page' );
 function wp_my_ai_chat_options_page() {
     add_menu_page(
@@ -660,7 +670,7 @@ function wp_my_ai_chat_options_page() {
     );
 }
 
-// Регистрируем опции в базе данных WordPress
+// Register options in WordPress database
 add_action( 'admin_init', 'my_ai_chat_register_settings' );
 function my_ai_chat_register_settings() {
     register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_system_prompt' );
@@ -677,7 +687,7 @@ function my_ai_chat_register_settings() {
     register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_product_card_template' );
 }
 
-// Рендеринг страницы настроек через файл view.php
+// Render settings page via view.php
 function wporg_my_ai_chat_options_page_html() {
     if ( ! current_user_can( 'manage_options' ) ) {
         return;
@@ -685,26 +695,23 @@ function wporg_my_ai_chat_options_page_html() {
     include plugin_dir_path(__FILE__) . 'admin/view.php';
 }
 
-// Хук для обработки нажатия кнопки в админке
+// Handle mass indexing button click
 add_action( 'admin_init', 'ai_chat_handle_mass_indexing_button' );
 
 function ai_chat_handle_mass_indexing_button() {
-    // Проверяем, была ли нажата именно наша кнопка
     if ( ! isset( $_POST['ai_bot_start_mass_index'] ) ) {
         return;
     }
 
-    // Проверяем безопасность (nonce) и права пользователя
     if ( ! check_admin_referer( 'ai_bot_mass_index_action', 'ai_bot_nonce' ) || ! current_user_can( 'manage_options' ) ) {
-        wp_die( 'У вас недостаточно прав для выполнения этого действия.' );
+        wp_die( __( 'You do not have sufficient permissions to perform this action.', 'my-ai-chat' ) );
     }
 
-    // Получаем ID всех опубликованных постов, страниц и товаров
     $args = array(
         'post_type'      => array( 'post', 'page', 'product' ),
         'post_status'    => 'publish',
-        'posts_per_page' => -1, // Берем абсолютно все
-        'fields'         => 'ids', // Нам нужны только ID, чтобы не забивать память
+        'posts_per_page' => -1,
+        'fields'         => 'ids',
     );
 
     $all_post_ids = get_posts( $args );
@@ -712,22 +719,22 @@ function ai_chat_handle_mass_indexing_button() {
     if ( ! empty( $all_post_ids ) ) {
         $count = 0;
         foreach ( $all_post_ids as $post_id ) {
-            // Планируем одиночный крон-таск на индексацию для каждого ID.
-            // WordPress (или Action Scheduler от WooCommerce) сам распределит нагрузку 
-            // и выполнит их один за другим в фоне, не вешая твой ноутбук.
             if ( ! wp_next_scheduled( 'my_ai_bot_index_single_post_cron', array( $post_id ) ) ) {
                 wp_schedule_single_event( time() + $count, 'my_ai_bot_index_single_post_cron', array( $post_id ) );
-                $count++; // Добавляем секундную задержку между задачами, чтобы они шли пачкой
+                $count++;
             }
         }
 
-        // Выводим красивое админ-уведомление об успехе
         add_action( 'admin_notices', function() use ( $count ) {
-            echo '<div class="notice notice-success is-dismissible"><p><strong>AI Bot:</strong> Успешно запланирована индексация для объектов в количестве: ' . $count . '. Задачи выполняются в фоне.</p></div>';
+            echo '<div class="notice notice-success is-dismissible"><p>' .
+                 sprintf( __( '<strong>AI Bot:</strong> Successfully scheduled indexing for %d objects. Tasks are running in the background.', 'my-ai-chat' ), $count ) .
+                 '</p></div>';
         });
     } else {
         add_action( 'admin_notices', function() {
-            echo '<div class="notice notice-warning is-dismissible"><p><strong>AI Bot:</strong> Не найдено контента для индексации.</p></div>';
+            echo '<div class="notice notice-warning is-dismissible"><p>' .
+                 __( '<strong>AI Bot:</strong> No content found for indexing.', 'my-ai-chat' ) .
+                 '</p></div>';
         });
     }
 }

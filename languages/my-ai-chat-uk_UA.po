@@ -1,0 +1,283 @@
+# Ukrainian Translation for My Custom AI RAG Bot
+# Copyright (C) 2026
+# This file is distributed under the same license as the My Custom AI RAG Bot plugin.
+msgid ""
+msgstr ""
+"Project-Id-Version: My Custom AI RAG Bot 1.1\n"
+"POT-Creation-Date: 2026-06-30\n"
+"PO-Revision-Date: 2026-06-30\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: uk_UA\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+# --- REST API / AJAX ---
+msgid "Question is empty"
+msgstr "Питання порожнє"
+
+msgid "Sorry, I found no information for your query on the site."
+msgstr "На жаль, я не знайшов інформації за вашим запитом на сайті."
+
+msgid "Sorry, nothing was found."
+msgstr "На жаль, нічого не знайдено."
+
+msgid "No title"
+msgstr "Без назви"
+
+msgid "Sorry, there was an error communicating with the neural network."
+msgstr "Вибачте, сталася помилка зв'язку з нейромережею."
+
+msgid "Failed to parse the response from the model."
+msgstr "Не вдалося розпарсити відповідь від моделі."
+
+msgid "Ollama Error (Code %d): "
+msgstr "Помилка Ollama (Код %d): "
+
+msgid "Empty message"
+msgstr "Порожнє повідомлення"
+
+msgid "You do not have sufficient permissions to perform this action."
+msgstr "У вас недостатньо прав для виконання цієї дії."
+
+# --- Admin notices ---
+msgid "<strong>AI Bot:</strong> Successfully scheduled indexing for %d objects. Tasks are running in the background."
+msgstr "<strong>AI Bot:</strong> Успішно заплановано індексацію для %d об'єктів. Завдання виконуються у фоні."
+
+msgid "<strong>AI Bot:</strong> No content found for indexing."
+msgstr "<strong>AI Bot:</strong> Не знайдено контенту для індексації."
+
+# --- Chat widget (chat-template.php) ---
+msgid "AI Assistant"
+msgstr "AI Асистент"
+
+msgid "Minimize"
+msgstr "Згорнути"
+
+msgid "Hello! Ask me a question about the site content and products."
+msgstr "Привіт! Задайте мені питання щодо контенту сайту та товарів."
+
+msgid "Enter your question..."
+msgstr "Введіть питання..."
+
+msgid "Send"
+msgstr "Надіслати"
+
+msgid "Open chat"
+msgstr "Відкрити чат"
+
+# --- JS strings (via wp_localize_script) ---
+msgid "Server error"
+msgstr "Помилка сервера"
+
+msgid "No answer."
+msgstr "Немає відповіді."
+
+msgid "Connection error with server."
+msgstr "Помилка з'єднання з сервером."
+
+# --- Indexing labels (stored in vector DB) ---
+msgid "Product"
+msgstr "Товар"
+
+msgid "SKU"
+msgstr "Артикул"
+
+msgid "Price"
+msgstr "Ціна"
+
+msgid "Description"
+msgstr "Опис"
+
+msgid "Page"
+msgstr "Сторінка"
+
+msgid "Article"
+msgstr "Стаття"
+
+msgid "Text"
+msgstr "Текст"
+
+# --- LLM prompt structural labels ---
+msgid "Document/Product (Link: %s):"
+msgstr "Документ/Товар (Посилання: %s):"
+
+msgid "System instruction:"
+msgstr "Системна інструкція:"
+
+msgid "Site context:"
+msgstr "Контекст сайту:"
+
+msgid "User question:"
+msgstr "Питання користувача:"
+
+msgid "Answer:"
+msgstr "Відповідь:"
+
+# --- Default option values ---
+msgid "You are a strict and polite assistant-consultant in an online store. Your task is to answer user questions based on the provided product CONTEXT.\nLINK RULE: You must use the link EXACTLY as specified in the 'Link:' field. Do not modify it. Write the product name, and put the exact link in parentheses next to it."
+msgstr "Ви — суворий та ввічливий асистент-консультант в інтернет-магазині. Ваше завдання — відповідати на питання користувачів на основі наданого КОНТЕКСТУ товарів.\nПРАВИЛО ДЛЯ ПОСИЛАНЬ: Ви повинні брати посилання ТАКЕ ЖЕ, як вказано в полі «Посилання:». Не змінюйте його. Пишіть назву товару, а поруч у дужках ставте точне посилання."
+
+msgid "Use the following information about products and site pages to answer the question. If the context does not have the required product, say it is not in stock."
+msgstr "Використовуй наступну інформацію про товари та сторінки сайту для відповіді на питання. Якщо в контексті немає потрібного товару, скажи, що його немає в наявності."
+
+msgid "<strong>We have this product!</strong><br>\nProduct: {title}<br>\nPrice: {price}<br>\nLink: <a href=\"{permalink}\" target=\"_blank\">Go to product</a><br><br>"
+msgstr "<strong>Є такий товар!</strong><br>\nТовар: {title}<br>\nЦіна: {price}<br>\nПосилання: <a href=\"{permalink}\" target=\"_blank\">Перейти до товару</a><br><br>"
+
+# --- Admin UI (admin/view.php) ---
+msgid "Local AI Chatbot Settings"
+msgstr "Налаштування локального AI чат-бота"
+
+msgid "AI Assistant Core Settings"
+msgstr "Основні налаштування Асистента"
+
+msgid "AI Engine (LLM Provider)"
+msgstr "Движок ШІ (LLM Provider)"
+
+msgid "Ollama (Local Qwen)"
+msgstr "Ollama (Локальний Qwen)"
+
+msgid "OpenAI API (ChatGPT)"
+msgstr "OpenAI API (ChatGPT)"
+
+msgid "Which neural network will formulate the final answer for the customer."
+msgstr "Яка нейромережа буде формулювати фінальну відповідь для покупця."
+
+msgid "Ollama API URL"
+msgstr "Ollama API URL"
+
+msgid "For Docker containers, usually use"
+msgstr "Для Docker-контейнерів зазвичай використовується"
+
+msgid "Creativity Temperature (Temperature)"
+msgstr "Температура творчості (Temperature)"
+
+msgid "Lower values (e.g. 0.2) make the bot stick more closely to the context. Higher values add creativity."
+msgstr "Чим нижче значення (наприклад, 0.2), тим суворіше бот дотримується контексту. Високі значення додадуть фантазії."
+
+msgid "Qdrant Connection Settings"
+msgstr "Налаштування підключення Qdrant"
+
+msgid "Qdrant API URL"
+msgstr "Qdrant API URL"
+
+msgid "Qdrant Collection Name"
+msgstr "Назва колекції Qdrant"
+
+msgid "For example:"
+msgstr "Наприклад:"
+
+msgid "Embedding Vector Size"
+msgstr "Розмір вектора ембедингу"
+
+msgid "Prompt Settings (Response Logic)"
+msgstr "Налаштування промптів (Логіка відповідей)"
+
+msgid "Use AI for answering"
+msgstr "Використовувати ШІ для відповіді"
+
+msgid "Enable AI usage for answering questions. If disabled, the bot will only respond from the knowledge base."
+msgstr "Увімкнути використання ШІ для відповідей на питання. Якщо вимкнено, бот відповідатиме лише з бази знань."
+
+msgid "LLM Model Name"
+msgstr "Назва моделі LLM"
+
+msgid "System Prompt"
+msgstr "Системний промпт (System Prompt)"
+
+msgid "Instructions for the model: its role, behavior, formatting rules for links, and the language of communication."
+msgstr "Інструкції для моделі: її роль, поведінка, правила форматування посилань та мова спілкування."
+
+msgid "RAG Context Template"
+msgstr "Інструкція до контексту (RAG Context Template)"
+
+msgid "This text will be added at the very beginning of the data block that the bot retrieved from Qdrant."
+msgstr "Цей текст буде додаватися на самому початку блоку даних, які бот витягнув з Qdrant."
+
+msgid "Product Card Template (No-AI Mode)"
+msgstr "Шаблон картки товару (Режим без ШІ)"
+
+msgid "HTML template for displaying a product in chat when AI is disabled. Available placeholders:"
+msgstr "HTML-шаблон для відображення товару в чаті, коли ШІ вимкнено. Доступні плейсхолдери:"
+
+msgid "product name"
+msgstr "назва товару"
+
+msgid "price"
+msgstr "ціна"
+
+msgid "link to product"
+msgstr "посилання на товар"
+
+msgid "Danger Zone (Vector Index)"
+msgstr "Небезпечна зона (Векторний індекс)"
+
+msgid "The settings below determine how product texts are converted into mathematical vectors. Changing the embedding model will make the old database incompatible!"
+msgstr "Налаштування нижче визначають, як саме тексти товарів переводяться в математичні вектори. Зміна моделі ембедингів зробить стару базу даних несумісною!"
+
+msgid "Embedding Model:"
+msgstr "Модель для embedding:"
+
+msgid "When changing this model, you MUST run re-indexing again!"
+msgstr "При зміні цієї моделі вам ОБОВ'ЯЗКОВО потрібно запустити переіндексацію знову!"
+
+msgid "Save All Settings"
+msgstr "Зберегти всі налаштування"
+
+msgid "Content Indexing"
+msgstr "Індексація контенту"
+
+msgid "Run mass re-indexing of all products, pages and posts into the Qdrant vector database. This runs in the background via WordPress Cron jobs."
+msgstr "Запустіть масову переіндексацію всіх товарів, сторінок і постів у векторну базу Qdrant. Це виконується у фоновому режимі через Cron-завдання WordPress."
+
+msgid "Start Re-indexing"
+msgstr "Запустити переіндексацію"
+
+# --- WP-CLI messages ---
+msgid "Checking environment readiness..."
+msgstr "Перевірка готовності оточення..."
+
+msgid "Critical error: Embedding model '%s' not found!\nRun: ollama pull %s"
+msgstr "Критична помилка: Модель ембедингів «%s» не знайдена!\nВиконайте: ollama pull %s"
+
+msgid "Critical error: Model '%s' not found!\nRun: ollama pull %s"
+msgstr "Критична помилка: Модель «%s» не знайдена!\nВиконайте: ollama pull %s"
+
+msgid "Checking/creating collection in Qdrant..."
+msgstr "Перевіряємо/створюємо колекцію в Qdrant..."
+
+msgid "Starting bulk content indexing in Qdrant..."
+msgstr "Запуск масової індексації контенту в Qdrant..."
+
+msgid "No published items found for indexing."
+msgstr "Немає опублікованих об'єктів для індексації."
+
+msgid "Items found for processing: "
+msgstr "Знайдено об'єктів для обробки: "
+
+msgid "Indexing"
+msgstr "Індексація"
+
+msgid "Indexing completed successfully!"
+msgstr "Індексацію успішно завершено!"
+
+msgid "You forgot to specify a search query."
+msgstr "Ви забули вказати пошуковий запит."
+
+msgid "Searching: "
+msgstr "Шукаємо: "
+
+msgid "Nothing found."
+msgstr "Нічого не знайдено."
+
+msgid "Question to bot: "
+msgstr "Питання боту: "
+
+msgid "BOT ANSWER"
+msgstr "ВІДПОВІДЬ БОТА"
+
+msgid "cURL error for ID %d: "
+msgstr "Помилка cURL для ID %d: "
+
+msgid "Qdrant returned code %d for ID %d. Response: "
+msgstr "Qdrant повернув код %d для ID %d. Відповідь: "

@@ -1,20 +1,18 @@
 <?php
-// Защита от прямого доступа к файлу
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-// Получаем текущие значения из базы или ставим дефолтные
-$system_prompt          = get_option( 'my_ai_chat_system_prompt', "Ты — строгий и вежливый ассистент-консультант в интернет-магазине. Твоя задача — отвечать на вопросы пользователей на основе предоставленного КОНТЕКСТА товаров.\nПРАВИЛО ДЛЯ ССЫЛОК: Ты должен брать ссылку ТАКУЮ ЖЕ, как указано в поле 'Ссылка:'. Не изменяй её. Пиши название товара, а рядом в скобках ставь точную ссылку." );
-$product_card_template  = get_option( 'my_ai_chat_product_card_template', "<strong>Есть такой товар!</strong><br>\nТовар: {title}<br>\nЦена: {price}<br>\nСсылка: <a href=\"{permalink}\" target=\"_blank\">Перейти к товару</a><br><br>" );
-$context_template       = get_option( 'my_ai_chat_context_template', "Используй следующую информацию о товарах и страницах сайта для ответа на вопрос. Если в контексте нет нужного товара, скажи, что его нет в наличии." );
+$system_prompt          = get_option( 'my_ai_chat_system_prompt', my_ai_chat_default_system_prompt() );
+$product_card_template  = get_option( 'my_ai_chat_product_card_template', my_ai_chat_default_product_card_template() );
+$context_template       = get_option( 'my_ai_chat_context_template', my_ai_chat_default_context_template() );
 $ollama_url             = get_option( 'my_ai_chat_ollama_url', 'http://host.docker.internal:11434' );
 $model_name             = get_option( 'my_ai_chat_model_name', 'qwen2.5:1.5b' );
 $temperature            = get_option( 'my_ai_chat_temperature', '0.3' );
 $qdrant_api_url         = get_option( 'my_ai_chat_qdrant_api_url', 'http://host.docker.internal:6333' );
 $qdrant_collection_name = get_option( 'my_ai_chat_qdrant_collection_name', 'wp_products_collection' );
 $embedding_vector_size  = get_option( 'my_ai_chat_embedding_vector_size', 768 );
-$model_embed 	        = get_option( 'my_ai_chat_model_embed', 'nomic-embed-text');
+$model_embed            = get_option( 'my_ai_chat_model_embed', 'nomic-embed-text' );
 $engine                 = get_option( 'my_ai_chat_engine', 'ollama' );
 $use_system_answer      = get_option( 'my_ai_chat_use_system_answer', '1' );
 ?>
@@ -64,7 +62,7 @@ $use_system_answer      = get_option( 'my_ai_chat_use_system_answer', '1' );
     display: flex;
     flex-direction: column;
     gap: 20px;
-    min-width: 0; /* Prevents flex items from overflowing */
+    min-width: 0;
 }
 .ai-chat-sidebar {
     flex: 1.2;
@@ -250,140 +248,140 @@ $use_system_answer      = get_option( 'my_ai_chat_use_system_answer', '1' );
 
 <div class="ai-chat-admin-wrap">
     <div class="ai-chat-header">
-        <h1><span class="dashicons dashicons-smart-phone"></span> Настройки локального AI чат-бота</h1>
+        <h1><span class="dashicons dashicons-smart-phone"></span> <?php esc_html_e( 'Local AI Chatbot Settings', 'my-ai-chat' ); ?></h1>
     </div>
 
     <div class="ai-chat-layout">
-        <!-- Левая колонка: Основные настройки -->
+        <!-- Left column: Main settings -->
         <div class="ai-chat-main-content">
             <form method="post" action="options.php">
                 <?php
-                // Выводит скрытые поля безопасности (nonce, group_name и т.д.)
                 settings_fields( 'my_ai_chat_settings_group' );
                 do_settings_sections( 'my_ai_chat_settings_group' );
                 ?>
 
-                <!-- Карта: Основные настройки ИИ -->
+                <!-- Card: AI Core Settings -->
                 <div class="ai-chat-card">
-                    <h3 class="ai-chat-card-title"><span class="dashicons dashicons-cpu"></span> Основные настройки Ассистента</h3>
-                    
+                    <h3 class="ai-chat-card-title"><span class="dashicons dashicons-cpu"></span> <?php esc_html_e( 'AI Assistant Core Settings', 'my-ai-chat' ); ?></h3>
+
                     <div class="ai-chat-grid">
                         <div class="ai-chat-row">
-                            <label for="my_ai_chat_engine">Движок ИИ (LLM Provider)</label>
+                            <label for="my_ai_chat_engine"><?php esc_html_e( 'AI Engine (LLM Provider)', 'my-ai-chat' ); ?></label>
                             <select name="my_ai_chat_engine" id="my_ai_chat_engine">
-                                <option value="ollama" <?php selected( $engine, 'ollama' ); ?>>Ollama (Локальный Qwen)</option>
-                                <option value="gpt" <?php selected( $engine, 'gpt' ); ?>>OpenAI API (ChatGPT)</option>
+                                <option value="ollama" <?php selected( $engine, 'ollama' ); ?>><?php esc_html_e( 'Ollama (Local Qwen)', 'my-ai-chat' ); ?></option>
+                                <option value="gpt" <?php selected( $engine, 'gpt' ); ?>><?php esc_html_e( 'OpenAI API (ChatGPT)', 'my-ai-chat' ); ?></option>
                             </select>
-                            <p class="description">Какая нейросеть будет формулировать финальный ответ для покупателя.</p>
+                            <p class="description"><?php esc_html_e( 'Which neural network will formulate the final answer for the customer.', 'my-ai-chat' ); ?></p>
                         </div>
 
                         <div class="ai-chat-row">
-                            <label for="my_ai_chat_ollama_url">Ollama API URL</label>
+                            <label for="my_ai_chat_ollama_url"><?php esc_html_e( 'Ollama API URL', 'my-ai-chat' ); ?></label>
                             <input type="url" id="my_ai_chat_ollama_url" name="my_ai_chat_ollama_url" value="<?php echo esc_url( $ollama_url ); ?>" class="code-font">
-                            <p class="description">Для Docker-контейнеров обычно используется <code>http://host.docker.internal:11434</code></p>
+                            <p class="description"><?php esc_html_e( 'For Docker containers, usually use', 'my-ai-chat' ); ?> <code>http://host.docker.internal:11434</code></p>
                         </div>
 
                         <div class="ai-chat-row">
-                            <label for="my_ai_chat_temperature">Температура креативности (Temperature)</label>
+                            <label for="my_ai_chat_temperature"><?php esc_html_e( 'Creativity Temperature (Temperature)', 'my-ai-chat' ); ?></label>
                             <input type="number" id="my_ai_chat_temperature" name="my_ai_chat_temperature" value="<?php echo esc_attr( $temperature ); ?>" step="0.1" min="0" max="1">
-                            <p class="description">Чем ниже значение (например, 0.2), тем строже бот следует контексту. Высокие значения добавят фантазии.</p>
+                            <p class="description"><?php esc_html_e( 'Lower values (e.g. 0.2) make the bot stick more closely to the context. Higher values add creativity.', 'my-ai-chat' ); ?></p>
                         </div>
-
                     </div>
                 </div>
 
-                <!-- Карта: Технические настройки Qdrant -->
+                <!-- Card: Qdrant Settings -->
                 <div class="ai-chat-card">
-                    <h3 class="ai-chat-card-title"><span class="dashicons dashicons-database"></span> Настройки подключения Qdrant</h3>
-                    
+                    <h3 class="ai-chat-card-title"><span class="dashicons dashicons-database"></span> <?php esc_html_e( 'Qdrant Connection Settings', 'my-ai-chat' ); ?></h3>
+
                     <div class="ai-chat-row">
-                        <label for="my_ai_chat_qdrant_api_url">Qdrant API URL</label>
+                        <label for="my_ai_chat_qdrant_api_url"><?php esc_html_e( 'Qdrant API URL', 'my-ai-chat' ); ?></label>
                         <input type="url" id="my_ai_chat_qdrant_api_url" name="my_ai_chat_qdrant_api_url" value="<?php echo esc_url( $qdrant_api_url ); ?>" class="code-font">
-                        <p class="description">Для Docker-контейнеров обычно используется <code>http://host.docker.internal:6333</code></p>
+                        <p class="description"><?php esc_html_e( 'For Docker containers, usually use', 'my-ai-chat' ); ?> <code>http://host.docker.internal:6333</code></p>
                     </div>
 
                     <div class="ai-chat-grid" style="margin-top: 16px;">
                         <div class="ai-chat-row">
-                            <label for="my_ai_chat_qdrant_collection_name">Имя коллекции Qdrant</label>
+                            <label for="my_ai_chat_qdrant_collection_name"><?php esc_html_e( 'Qdrant Collection Name', 'my-ai-chat' ); ?></label>
                             <input type="text" id="my_ai_chat_qdrant_collection_name" name="my_ai_chat_qdrant_collection_name" value="<?php echo esc_attr( $qdrant_collection_name ); ?>" class="code-font">
-                            <p class="description">Например: <code>wp_products_collection</code></p>
+                            <p class="description"><?php esc_html_e( 'For example:', 'my-ai-chat' ); ?> <code>wp_products_collection</code></p>
                         </div>
 
                         <div class="ai-chat-row">
-                            <label for="my_ai_chat_embedding_vector_size">Размер вектора эмбеддинга</label>
+                            <label for="my_ai_chat_embedding_vector_size"><?php esc_html_e( 'Embedding Vector Size', 'my-ai-chat' ); ?></label>
                             <input type="number" id="my_ai_chat_embedding_vector_size" name="my_ai_chat_embedding_vector_size" value="<?php echo esc_attr( $embedding_vector_size ); ?>" step="1" min="1">
-                            <p class="description">Например: <code>768</code></p>
+                            <p class="description"><?php esc_html_e( 'For example:', 'my-ai-chat' ); ?> <code>768</code></p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Карта: Промпты -->
+                <!-- Card: Prompt Settings -->
                 <div class="ai-chat-card">
-                    <h3 class="ai-chat-card-title"><span class="dashicons dashicons-editor-code"></span> Настройки промптов (Логика ответов)</h3>
+                    <h3 class="ai-chat-card-title"><span class="dashicons dashicons-editor-code"></span> <?php esc_html_e( 'Prompt Settings (Response Logic)', 'my-ai-chat' ); ?></h3>
 
                     <div class="ai-chat-row">
-                        <label for="my_ai_chat_use_system_answer">Использовать ИИ для ответа</label>
+                        <label for="my_ai_chat_use_system_answer"><?php esc_html_e( 'Use AI for answering', 'my-ai-chat' ); ?></label>
                         <input type="checkbox" id="my_ai_chat_use_system_answer" name="my_ai_chat_use_system_answer" value="1" <?php checked( get_option( 'my_ai_chat_use_system_answer', '1' ), '1' ); ?> class="code-font">
-                        <p class="description">Включить использование ИИ для ответов на вопросы. Если выключено, бот будет отвечать только из базы знаний.</p>
+                        <p class="description"><?php esc_html_e( 'Enable AI usage for answering questions. If disabled, the bot will only respond from the knowledge base.', 'my-ai-chat' ); ?></p>
                     </div>
 
                     <div class="ai-chat-row">
-                        <label for="my_ai_chat_model_name">Название модели LLM</label>
+                        <label for="my_ai_chat_model_name"><?php esc_html_e( 'LLM Model Name', 'my-ai-chat' ); ?></label>
                         <input type="text" id="my_ai_chat_model_name" name="my_ai_chat_model_name" value="<?php echo esc_attr( $model_name ); ?>" class="code-font">
-                        <p class="description">Например: <code>qwen2.5:1.5b</code>, <code>llama3:8b</code> или любая другая модель в Ollama.</p>
+                        <p class="description"><?php esc_html_e( 'For example:', 'my-ai-chat' ); ?> <code>qwen2.5:1.5b</code>, <code>llama3:8b</code></p>
                     </div>
-                    
+
                     <div class="ai-chat-row">
-                        <label for="my_ai_chat_system_prompt">Системный промпт (System Prompt)</label>
-                        <textarea id="my_ai_chat_system_prompt" name="my_ai_chat_system_prompt" rows="6" class="code-font" <?php if(!$use_system_answer){ echo 'readonly style="opacity: 0.5; background-color: #f0f0f1; cursor: not-allowed;"';}?> ><?php echo esc_textarea( $system_prompt ); ?></textarea>
-                        <p class="description">Инструкции для модели: её роль, поведение, правила форматирования ссылок и язык общения.</p>
+                        <label for="my_ai_chat_system_prompt"><?php esc_html_e( 'System Prompt', 'my-ai-chat' ); ?></label>
+                        <textarea id="my_ai_chat_system_prompt" name="my_ai_chat_system_prompt" rows="6" class="code-font" <?php if ( ! $use_system_answer ) { echo 'readonly style="opacity: 0.5; background-color: #f0f0f1; cursor: not-allowed;"'; } ?>><?php echo esc_textarea( $system_prompt ); ?></textarea>
+                        <p class="description"><?php esc_html_e( 'Instructions for the model: its role, behavior, formatting rules for links, and the language of communication.', 'my-ai-chat' ); ?></p>
                     </div>
 
                     <div class="ai-chat-row" style="margin-top: 16px;">
-                        <label for="my_ai_chat_context_template">Инструкция к контексту (RAG Context Template)</label>
-                        <textarea id="my_ai_chat_context_template" name="my_ai_chat_context_template" rows="3" class="code-font" <?php if(!$use_system_answer){ echo 'readonly style="opacity: 0.5; background-color: #f0f0f1; cursor: not-allowed;"';}?>><?php echo esc_textarea( $context_template ); ?></textarea>
-                        <p class="description">Этот текст будет добавляться в самое начало блока данных, которые бот вытащил из Qdrant.</p>
+                        <label for="my_ai_chat_context_template"><?php esc_html_e( 'RAG Context Template', 'my-ai-chat' ); ?></label>
+                        <textarea id="my_ai_chat_context_template" name="my_ai_chat_context_template" rows="3" class="code-font" <?php if ( ! $use_system_answer ) { echo 'readonly style="opacity: 0.5; background-color: #f0f0f1; cursor: not-allowed;"'; } ?>><?php echo esc_textarea( $context_template ); ?></textarea>
+                        <p class="description"><?php esc_html_e( 'This text will be added at the very beginning of the data block that the bot retrieved from Qdrant.', 'my-ai-chat' ); ?></p>
                     </div>
 
                     <div class="ai-chat-row" style="margin-top: 16px;">
-                        <label for="my_ai_chat_product_card_template">Шаблон карточки товара (Режим без ИИ)</label>
+                        <label for="my_ai_chat_product_card_template"><?php esc_html_e( 'Product Card Template (No-AI Mode)', 'my-ai-chat' ); ?></label>
                         <textarea id="my_ai_chat_product_card_template" name="my_ai_chat_product_card_template" rows="5" class="code-font"><?php echo esc_textarea( $product_card_template ); ?></textarea>
                         <p class="description">
-                            HTML-шаблон для отображения товара в чате, когда ИИ отключён. Доступные плейсхолдеры:<br>
-                            <code>{title}</code> — название товара &nbsp;|&nbsp; <code>{price}</code> — цена &nbsp;|&nbsp; <code>{permalink}</code> — ссылка на товар
+                            <?php esc_html_e( 'HTML template for displaying a product in chat when AI is disabled. Available placeholders:', 'my-ai-chat' ); ?><br>
+                            <code>{title}</code> — <?php esc_html_e( 'product name', 'my-ai-chat' ); ?> &nbsp;|&nbsp;
+                            <code>{price}</code> — <?php esc_html_e( 'price', 'my-ai-chat' ); ?> &nbsp;|&nbsp;
+                            <code>{permalink}</code> — <?php esc_html_e( 'link to product', 'my-ai-chat' ); ?>
                         </p>
                     </div>
                 </div>
 
-                <!-- Карта: Опасная зона (Модель эмбеддингов) -->
+                <!-- Card: Danger Zone -->
                 <div class="ai-chat-danger-card">
-                    <h4><span class="dashicons dashicons-warning"></span> Опасная зона (Векторный индекс)</h4>
-                    <p>Настройки ниже определяют, как именно тексты товаров переводятся в математические векторы. Изменение модели эмбеддингов сделает старую базу данных несовместимой!</p>
-                    
+                    <h4><span class="dashicons dashicons-warning"></span> <?php esc_html_e( 'Danger Zone (Vector Index)', 'my-ai-chat' ); ?></h4>
+                    <p><?php esc_html_e( 'The settings below determine how product texts are converted into mathematical vectors. Changing the embedding model will make the old database incompatible!', 'my-ai-chat' ); ?></p>
+
                     <div class="ai-chat-row">
-                        <label for="my_ai_chat_model_embed">Модель для embedding:</label>
+                        <label for="my_ai_chat_model_embed"><?php esc_html_e( 'Embedding Model:', 'my-ai-chat' ); ?></label>
                         <input type="text" name="my_ai_chat_model_embed" id="my_ai_chat_model_embed" value="<?php echo esc_attr( $model_embed ); ?>" class="code-font">
                         <p class="description warning-alert">
-                            При изменении этой модели вам ОБЯЗАТЕЛЬНО нужно запустить переиндексацию заново!
+                            <?php esc_html_e( 'When changing this model, you MUST run re-indexing again!', 'my-ai-chat' ); ?>
                         </p>
                     </div>
                 </div>
 
                 <div class="ai-chat-save-container">
-                    <?php submit_button( 'Сохранить все настройки', 'primary', 'submit', false ); ?>
+                    <?php submit_button( __( 'Save All Settings', 'my-ai-chat' ), 'primary', 'submit', false ); ?>
                 </div>
             </form>
         </div>
 
-        <!-- Правая колонка: Управление индексом -->
+        <!-- Right column: Index management -->
         <div class="ai-chat-sidebar">
             <div class="ai-chat-action-card">
-                <h3><span class="dashicons dashicons-update"></span> Индексация контента</h3>
-                <p>Запустите массовую переиндексацию всех товаров, страниц и постов в векторную базу Qdrant. Это выполняется в фоновом режиме через Cron-задачи WordPress.</p>
-                
+                <h3><span class="dashicons dashicons-update"></span> <?php esc_html_e( 'Content Indexing', 'my-ai-chat' ); ?></h3>
+                <p><?php esc_html_e( 'Run mass re-indexing of all products, pages and posts into the Qdrant vector database. This runs in the background via WordPress Cron jobs.', 'my-ai-chat' ); ?></p>
+
                 <form method="post" action="">
                     <?php wp_nonce_field( 'ai_bot_mass_index_action', 'ai_bot_nonce' ); ?>
-                    <input type="submit" name="ai_bot_start_mass_index" class="button button-primary button-large" value="Запустить переиндексацию">
+                    <input type="submit" name="ai_bot_start_mass_index" class="button button-primary button-large" value="<?php esc_attr_e( 'Start Re-indexing', 'my-ai-chat' ); ?>">
                 </form>
             </div>
         </div>
@@ -403,7 +401,7 @@ document.addEventListener('DOMContentLoaded', function() {
             systemPromptTextarea.style.opacity = '1';
             systemPromptTextarea.style.backgroundColor = '';
             systemPromptTextarea.style.cursor = '';
-            
+
             contextTemplateTextarea.removeAttribute('readonly');
             contextTemplateTextarea.style.opacity = '1';
             contextTemplateTextarea.style.backgroundColor = '';
@@ -413,7 +411,7 @@ document.addEventListener('DOMContentLoaded', function() {
             systemPromptTextarea.style.opacity = '0.5';
             systemPromptTextarea.style.backgroundColor = '#f0f0f1';
             systemPromptTextarea.style.cursor = 'not-allowed';
-            
+
             contextTemplateTextarea.setAttribute('readonly', 'readonly');
             contextTemplateTextarea.style.opacity = '0.5';
             contextTemplateTextarea.style.backgroundColor = '#f0f0f1';

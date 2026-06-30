@@ -8,7 +8,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (!button || !input || !messagesContainer || !widget) return;
 
-    // Восстановление состояния чата из localStorage
+    const l10n = (typeof aiChatL10n !== 'undefined') ? aiChatL10n : {
+        serverError: 'Server error',
+        noAnswer: 'No answer.',
+        connectionError: 'Connection error with server.'
+    };
+
+    // Restore chat state from localStorage
     const isChatOpen = localStorage.getItem('ai_chat_open') === 'true';
     if (isChatOpen) {
         widget.classList.remove('collapsed');
@@ -21,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem('ai_chat_open', 'true');
         setTimeout(() => {
             input.focus();
-        }, 300); // Фокус после завершения анимации раскрытия
+        }, 300);
     }
 
     function closeChat() {
@@ -53,10 +59,9 @@ document.addEventListener('DOMContentLoaded', function() {
         input.value = '';
         button.disabled = true;
 
-        // Создаем пустое сообщение бота, в которое будем потихоньку дописывать текст
         const botMessageId = appendMessage('', 'bot');
         const botMessageElement = document.getElementById(botMessageId);
-        botMessageElement.innerText = '...'; // Статус ожидания
+        botMessageElement.innerText = '...';
 
         try {
             const apiEndpoint = window.location.origin + '/index.php?rest_route=/aibot/v1/chat';
@@ -66,14 +71,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({ question: question })
             });
 
-            if (!response.ok) throw new Error('Ошибка сервера');
+            if (!response.ok) throw new Error(l10n.serverError);
 
             const data = await response.json();
-            botMessageElement.innerHTML = data.answer || 'Нет ответа.';
+            botMessageElement.innerHTML = data.answer || l10n.noAnswer;
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
         } catch (error) {
-            botMessageElement.innerText = 'Ошибка соединения с сервером.';
+            botMessageElement.innerText = l10n.connectionError;
         } finally {
             button.disabled = false;
         }
