@@ -525,96 +525,106 @@ function ai_chat_generate_rag_response( $user_question ) {
     }
 
    $context = '';
-    foreach ( $similar_items as $item ) {
-        $post_id = $item['id'];
-        $permalink = get_permalink( $post_id );
-        
-        if ( get_post_type( $post_id ) === 'product' ) {
-            $product = wc_get_product( $post_id );
-            
-            if ( $product ) {
-                // Очищаем цену от лишней разметки woo, оставляя чистый текст (например, "30.00 ₴")
-                $price = wp_strip_all_tags( $product->get_price_html() );
-                $price = html_entity_decode( $price, ENT_QUOTES, 'UTF-8' );
-                
-                $title = get_the_title( $post_id );
+   $use_system_answer = get_option( 'my_ai_chat_use_system_answer', '1' );
 
-                // Формируем красивый HTML-блок для фронтенда
-                $context .= '<strong>Есть такой товар!</strong><br>';
-                $context .= 'Товар: ' . esc_html( $title ) . '<br>';
-                $context .= 'Цена: ' . esc_html( $price ) . '<br>';
-                $context .= 'Ссылка: <a href="' . esc_url( $permalink ) . '" target="_blank">Перейти к товару</a><br><br>';
+    if(!$use_system_answer){
+        foreach ( $similar_items as $item ) {
+            $post_id = $item['id'];
+            $permalink = get_permalink( $post_id );
+            
+            if ( get_post_type( $post_id ) === 'product' ) {
+                $product = wc_get_product( $post_id );
+                
+                if ( $product ) {
+                    // Очищаем цену от лишней разметки woo, оставляя чистый текст (например, "30.00 ₴")
+                    $price = wp_strip_all_tags( $product->get_price_html() );
+                    $price = html_entity_decode( $price, ENT_QUOTES, 'UTF-8' );
+                    
+                    $title = get_the_title( $post_id );
+
+                    // Формируем HTML-блок по шаблону из настроек
+                    $card_template = get_option(
+                        'my_ai_chat_product_card_template',
+                        "<strong>Есть такой товар!</strong><br>\nТовар: {title}<br>\nЦена: {price}<br>\nСсылка: <a href=\"{permalink}\" target=\"_blank\">Перейти к товару</a><br><br>"
+                    );
+                    $context .= str_replace(
+                        [ '{title}', '{price}', '{permalink}' ],
+                        [ esc_html( $title ), esc_html( $price ), esc_url( $permalink ) ],
+                        $card_template
+                    );
+                }
             }
         }
+
+        return !empty($context) ? $context : 'К сожалению, ничего не найдено.';
+    } else {
+
+        // 1. Собираем контекст из найденных объектов Qdrant
+        $context_text = "";
+        foreach ( $similar_items as $item ) {
+            $post_id = $item['id'];
+            $permalink = get_permalink( $post_id );
+            
+            // Берем текст из payload (или title, если текста нет)
+            $payload_text = $item['text'] ?? $item['title'];
+            
+            $context_text .= "Документ/Товар (Ссылка: {$permalink}):\n{$payload_text}\n\n";
+        }
+
+        // 2. Берём настройки промпта и модели из опций WP
+        $system_prompt = get_option( 'my_ai_chat_system_prompt', 'Ты — полезный ассистент магазина. Отвечай коротко и по делу. Если в контексте есть подходящие товары, обязательно давай на них прямые ссылки.' );
+        $llm_model     = get_option( 'my_ai_chat_model_name', 'qwen2.5:1.5b' );
+
+        // Формируем финальный промпт для Ollama /api/generate
+        $full_prompt = "Системная инструкция: {$system_prompt}\n\nКонтекст сайта:\n{$context_text}\nВопрос пользователя: {$user_question}\nОтвет:";
+
+        // 3. Делаем запрос к Ollama
+        $ollama_url = rtrim( get_my_ai_chat_ollama_url(), '/' ) . '/generate';
+
+        $request_body = array(
+            'model'  => $llm_model,
+            'prompt' => $full_prompt,
+            'stream' => false, // Ждем ответ целиком
+        );
+
+        error_log("AI Bot Sending to Ollama URL: " . $ollama_url);
+        error_log("AI Bot Sending Body: " . json_encode($request_body, JSON_UNESCAPED_UNICODE));
+
+        $ollama_response = wp_remote_request( $ollama_url, array(
+            'method'      => 'POST', // Явно задаем метод POST через wp_remote_request
+            'headers'     => array( 
+                'Content-Type' => 'application/json',
+                'Accept'       => 'application/json'
+            ),
+            'body'        => json_encode( $request_body ),
+            'timeout'     => 90,
+            'data_format' => 'body'
+        ) );
+
+        if ( is_wp_error( $ollama_response ) ) {
+            error_log( 'AI Bot Ollama Error: ' . $ollama_response->get_error_message() );
+            return 'Извините, произошла ошибка связи с нейросети.';
+        }
+
+        $response_code = wp_remote_retrieve_response_code( $ollama_response );
+        $response_body = wp_remote_retrieve_body( $ollama_response );
+
+        error_log("AI Bot Ollama Response Code: " . $response_code);
+        error_log("AI Bot Ollama Response Body: " . $response_body);
+
+        if ( $response_code !== 200 ) {
+            return "Ошибка Ollama (Код {$response_code}): " . substr($response_body, 0, 100);
+        }
+
+        $ollama_data = json_decode( $response_body, true );
+        $bot_response = $ollama_data['response'] ?? null;
+
+        if ( empty( $bot_response ) ) {
+            return 'Не удалось распарсить ответ от модели.';
+        }
+
+        return trim( $bot_response );
     }
-
-    return !empty($context) ? $context : 'К сожалению, ничего не найдено.';
-
-    // 1. Собираем контекст из найденных объектов Qdrant
-    $context_text = "";
-    foreach ( $similar_items as $item ) {
-        $post_id = $item['id'];
-        $permalink = get_permalink( $post_id );
-        
-        // Берем текст из payload (или title, если текста нет)
-        $payload_text = $item['text'] ?? $item['title'];
-        
-        $context_text .= "Документ/Товар (Ссылка: {$permalink}):\n{$payload_text}\n\n";
-    }
-
-    // 2. Берём настройки промпта и модели из опций WP
-    $system_prompt = get_option( 'my_ai_chat_system_prompt', 'Ты — полезный ассистент магазина. Отвечай коротко и по делу. Если в контексте есть подходящие товары, обязательно давай на них прямые ссылки.' );
-    $llm_model     = get_option( 'my_ai_chat_model_name', 'qwen2.5:1.5b' );
-
-    // Формируем финальный промпт для Ollama /api/generate
-    $full_prompt = "Системная инструкция: {$system_prompt}\n\nКонтекст сайта:\n{$context_text}\nВопрос пользователя: {$user_question}\nОтвет:";
-
-    // 3. Делаем запрос к Ollama
-    $ollama_url = rtrim( get_my_ai_chat_ollama_url(), '/' ) . '/generate';
-
-    $request_body = array(
-        'model'  => $llm_model,
-        'prompt' => $full_prompt,
-        'stream' => false, // Ждем ответ целиком
-    );
-
-    error_log("AI Bot Sending to Ollama URL: " . $ollama_url);
-    error_log("AI Bot Sending Body: " . json_encode($request_body, JSON_UNESCAPED_UNICODE));
-
-    $ollama_response = wp_remote_request( $ollama_url, array(
-        'method'      => 'POST', // Явно задаем метод POST через wp_remote_request
-        'headers'     => array( 
-            'Content-Type' => 'application/json',
-            'Accept'       => 'application/json'
-        ),
-        'body'        => json_encode( $request_body ),
-        'timeout'     => 90,
-        'data_format' => 'body'
-    ) );
-
-    if ( is_wp_error( $ollama_response ) ) {
-        error_log( 'AI Bot Ollama Error: ' . $ollama_response->get_error_message() );
-        return 'Извините, произошла ошибка связи с нейросети.';
-    }
-
-    $response_code = wp_remote_retrieve_response_code( $ollama_response );
-    $response_body = wp_remote_retrieve_body( $ollama_response );
-
-    error_log("AI Bot Ollama Response Code: " . $response_code);
-    error_log("AI Bot Ollama Response Body: " . $response_body);
-
-    if ( $response_code !== 200 ) {
-        return "Ошибка Ollama (Код {$response_code}): " . substr($response_body, 0, 100);
-    }
-
-    $ollama_data = json_decode( $response_body, true );
-    $bot_response = $ollama_data['response'] ?? null;
-
-    if ( empty( $bot_response ) ) {
-        return 'Не удалось распарсить ответ от модели.';
-    }
-
-    return trim( $bot_response );
 }
 
 add_action( 'wp_ajax_ai_chat_message', 'ai_chat_ajax_handler' );
@@ -661,7 +671,10 @@ function my_ai_chat_register_settings() {
     register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_qdrant_api_url' );
     register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_qdrant_collection_name' );
     register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_embedding_vector_size' );
-    
+    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_engine' );
+    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_model_embed' );
+    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_use_system_answer' );
+    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_product_card_template' );
 }
 
 // Рендеринг страницы настроек через файл view.php
