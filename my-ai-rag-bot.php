@@ -113,6 +113,19 @@ function ai_chat_initialize_vector_db() {
 add_action( 'wp_enqueue_scripts', 'ai_chat_enqueue_assets' );
 function ai_chat_enqueue_assets() {
     wp_enqueue_style( 'ai-chat-style', plugins_url( 'css/chat-style.css', __FILE__ ), array(), filemtime( plugin_dir_path( __FILE__ ) . 'css/chat-style.css' ) );
+
+    $primary_color = get_option( 'my_ai_chat_primary_color', '#0073aa' );
+    if ( empty( $primary_color ) ) {
+        $primary_color = '#0073aa';
+    }
+
+    $custom_css = "
+        :root {
+            --ai-chat-primary-color: " . esc_attr( $primary_color ) . ";
+        }
+    ";
+    wp_add_inline_style( 'ai-chat-style', $custom_css );
+
     wp_enqueue_script( 'ai-chat-script', plugins_url( 'js/chat-script.js', __FILE__ ), array(), filemtime( plugin_dir_path( __FILE__ ) . 'js/chat-script.js' ), true );
     wp_localize_script( 'ai-chat-script', 'aiChatL10n', array(
         'serverError'     => __( 'Server error', 'my-ai-chat' ),
@@ -236,13 +249,41 @@ function ai_chat_execute_background_indexing( $post_id ) {
     if ( $post->post_type === 'product' && function_exists( 'wc_get_product' ) ) {
         $product = wc_get_product( $post_id );
         if ( $product ) {
+
+            // Получаем категории товара
+            $categories_list = wc_get_product_category_list( $post_id, ', ', '', '' );
+            $categories = wp_strip_all_tags( $categories_list );
+
+            // Получаем ключевые атрибуты товара
+            $attributes_string = '';
+            $attributes = $product->get_attributes();
+            foreach ( $attributes as $attribute ) {
+                // Получаем читаемые названия значений атрибута
+                if ( $attribute->is_taxonomy() ) {
+                    $terms = wp_get_post_terms( $post_id, $attribute->get_name(), array( 'fields' => 'names' ) );
+                    $values = implode( ', ', $terms );
+                } else {
+                    $values = implode( ', ', $attribute->get_options() );
+                }
+                
+                // Получаем читаемое имя самого атрибута
+                $attr_name = wc_attribute_label( $attribute->get_name() );
+                if ( ! empty( $values ) ) {
+                    $attributes_string .= "{$attr_name}: {$values}. ";
+                }
+            }
+
             $price = wp_strip_all_tags( $product->get_price_html() );
             $price = html_entity_decode( $price, ENT_QUOTES, 'UTF-8' );
             $sku = $product->get_sku();
+            $short_desc = wp_strip_all_tags( $product->get_short_description() );
 
             $text_to_embed = __( 'Product', 'my-ai-chat' ) . ": {$title}. ";
             if ( ! empty( $sku ) ) $text_to_embed .= __( 'SKU', 'my-ai-chat' ) . ": {$sku}. ";
-            $text_to_embed .= __( 'Price', 'my-ai-chat' ) . ": {$price}. " . __( 'Description', 'my-ai-chat' ) . ": {$content}";
+            $text_to_embed .= __( 'Categories', 'my-ai-chat' ) . ": {$categories}. " . __( 'Attributes', 'my-ai-chat' ) . ": {$attributes_string}. " . __( 'Price', 'my-ai-chat' ) . ": {$price}. ";
+            if ( ! empty( $short_desc ) ) $text_to_embed .= __( 'Short Description', 'my-ai-chat' ) . ": {$short_desc}. ";
+            $text_to_embed .= __( 'Description', 'my-ai-chat' ) . ": {$content}";
+
         }
     } else {
         $type_label = ( $post->post_type === 'page' ) ? __( 'Page', 'my-ai-chat' ) : __( 'Article', 'my-ai-chat' );
@@ -390,12 +431,39 @@ class AI_Bot_CLI_Commands {
                 if ( $post->post_type === 'product' && function_exists( 'wc_get_product' ) ) {
                     $product = wc_get_product( $post_id );
                     if ( $product ) {
+
+                        // Получаем категории товара
+                        $categories_list = wc_get_product_category_list( $post_id, ', ', '', '' );
+                        $categories = wp_strip_all_tags( $categories_list );
+
+                        // Получаем ключевые атрибуты товара
+                        $attributes_string = '';
+                        $attributes = $product->get_attributes();
+                        foreach ( $attributes as $attribute ) {
+                            // Получаем читаемые названия значений атрибута
+                            if ( $attribute->is_taxonomy() ) {
+                                $terms = wp_get_post_terms( $post_id, $attribute->get_name(), array( 'fields' => 'names' ) );
+                                $values = implode( ', ', $terms );
+                            } else {
+                                $values = implode( ', ', $attribute->get_options() );
+                            }
+                            
+                            // Получаем читаемое имя самого атрибута
+                            $attr_name = wc_attribute_label( $attribute->get_name() );
+                            if ( ! empty( $values ) ) {
+                                $attributes_string .= "{$attr_name}: {$values}. ";
+                            }
+                        }
                         $price = wp_strip_all_tags( $product->get_price_html() );
                         $price = html_entity_decode( $price, ENT_QUOTES, 'UTF-8' );
                         $sku = $product->get_sku();
+                        $short_desc = wp_strip_all_tags( $product->get_short_description() );
                         $text_to_embed = __( 'Product', 'my-ai-chat' ) . ": {$title}. ";
                         if ( ! empty( $sku ) ) $text_to_embed .= __( 'SKU', 'my-ai-chat' ) . ": {$sku}. ";
-                        $text_to_embed .= __( 'Price', 'my-ai-chat' ) . ": {$price}. " . __( 'Description', 'my-ai-chat' ) . ": {$content}";
+                        $text_to_embed .= __( 'Categories', 'my-ai-chat' ) . ": {$categories}. " . __( 'Attributes', 'my-ai-chat' ) . ": {$attributes_string}. " . __( 'Price', 'my-ai-chat' ) . ": {$price}. ";
+                        if ( ! empty( $short_desc ) ) $text_to_embed .= __( 'Short Description', 'my-ai-chat' ) . ": {$short_desc}. ";
+                        $text_to_embed .= __( 'Description', 'my-ai-chat' ) . ": {$content}";
+
                     }
                 } else {
                     $type_label = ( $post->post_type === 'page' ) ? __( 'Page', 'my-ai-chat' ) : __( 'Article', 'my-ai-chat' );
@@ -685,6 +753,7 @@ function my_ai_chat_register_settings() {
     register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_model_embed' );
     register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_use_system_answer' );
     register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_product_card_template' );
+    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_primary_color' );
 }
 
 // Render settings page via view.php

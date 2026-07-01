@@ -15,6 +15,10 @@ $embedding_vector_size  = get_option( 'my_ai_chat_embedding_vector_size', 768 );
 $model_embed            = get_option( 'my_ai_chat_model_embed', 'nomic-embed-text' );
 $engine                 = get_option( 'my_ai_chat_engine', 'ollama' );
 $use_system_answer      = get_option( 'my_ai_chat_use_system_answer', '1' );
+$primary_color          = get_option( 'my_ai_chat_primary_color', '#0073aa' );
+if ( empty( $primary_color ) ) {
+    $primary_color = '#0073aa';
+}
 ?>
 
 <style>
@@ -325,7 +329,7 @@ $use_system_answer      = get_option( 'my_ai_chat_use_system_answer', '1' );
 
                     <div class="ai-chat-row">
                         <label for="my_ai_chat_model_name"><?php esc_html_e( 'LLM Model Name', 'my-ai-chat' ); ?></label>
-                        <input type="text" id="my_ai_chat_model_name" name="my_ai_chat_model_name" value="<?php echo esc_attr( $model_name ); ?>" class="code-font">
+                        <input type="text" id="my_ai_chat_model_name" name="my_ai_chat_model_name" value="<?php echo esc_attr( $model_name ); ?>" class="code-font" <?php if ( ! $use_system_answer ) { echo 'readonly style="opacity: 0.5; background-color: #f0f0f1; cursor: not-allowed;"'; } ?>>
                         <p class="description"><?php esc_html_e( 'For example:', 'my-ai-chat' ); ?> <code>qwen2.5:1.5b</code>, <code>llama3:8b</code></p>
                     </div>
 
@@ -350,6 +354,20 @@ $use_system_answer      = get_option( 'my_ai_chat_use_system_answer', '1' );
                             <code>{price}</code> — <?php esc_html_e( 'price', 'my-ai-chat' ); ?> &nbsp;|&nbsp;
                             <code>{permalink}</code> — <?php esc_html_e( 'link to product', 'my-ai-chat' ); ?>
                         </p>
+                    </div>
+                </div>
+
+                <!-- Card: Widget Appearance -->
+                <div class="ai-chat-card">
+                    <h3 class="ai-chat-card-title"><span class="dashicons dashicons-admin-appearance"></span> <?php esc_html_e( 'Widget Customization', 'my-ai-chat' ); ?></h3>
+
+                    <div class="ai-chat-row">
+                        <label for="my_ai_chat_primary_color"><?php esc_html_e( 'Primary Color', 'my-ai-chat' ); ?></label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="color" id="my_ai_chat_primary_color_picker" value="<?php echo esc_attr( $primary_color ); ?>" style="width: 50px; height: 30px; padding: 0; border: 1px solid #8c8f94; border-radius: 4px; cursor: pointer;">
+                            <input type="text" id="my_ai_chat_primary_color" name="my_ai_chat_primary_color" value="<?php echo esc_attr( get_option( 'my_ai_chat_primary_color', '#0073aa' ) ); ?>" class="code-font" style="width: 120px;" placeholder="#0073aa">
+                        </div>
+                        <p class="description"><?php esc_html_e( 'Choose the primary color for the chat widget header and toggle button. If left empty, #0073aa will be used.', 'my-ai-chat' ); ?></p>
                     </div>
                 </div>
 
@@ -391,6 +409,7 @@ $use_system_answer      = get_option( 'my_ai_chat_use_system_answer', '1' );
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const useSystemAnswerCheckbox = document.getElementById('my_ai_chat_use_system_answer');
+    const modelNameInput = document.getElementById('my_ai_chat_model_name');
     const systemPromptTextarea = document.getElementById('my_ai_chat_system_prompt');
     const contextTemplateTextarea = document.getElementById('my_ai_chat_context_template');
 
@@ -402,6 +421,11 @@ document.addEventListener('DOMContentLoaded', function() {
             systemPromptTextarea.style.backgroundColor = '';
             systemPromptTextarea.style.cursor = '';
 
+            modelNameInput.removeAttribute('readonly');
+            modelNameInput.style.opacity = '1';
+            modelNameInput.style.backgroundColor = '';
+            modelNameInput.style.cursor = '';
+
             contextTemplateTextarea.removeAttribute('readonly');
             contextTemplateTextarea.style.opacity = '1';
             contextTemplateTextarea.style.backgroundColor = '';
@@ -412,6 +436,11 @@ document.addEventListener('DOMContentLoaded', function() {
             systemPromptTextarea.style.backgroundColor = '#f0f0f1';
             systemPromptTextarea.style.cursor = 'not-allowed';
 
+            modelNameInput.setAttribute('readonly', 'readonly');
+            modelNameInput.style.opacity = '0.5';
+            modelNameInput.style.backgroundColor = '#f0f0f1';
+            modelNameInput.style.cursor = 'not-allowed';
+
             contextTemplateTextarea.setAttribute('readonly', 'readonly');
             contextTemplateTextarea.style.opacity = '0.5';
             contextTemplateTextarea.style.backgroundColor = '#f0f0f1';
@@ -419,8 +448,24 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    if (useSystemAnswerCheckbox && systemPromptTextarea && contextTemplateTextarea) {
+    if (useSystemAnswerCheckbox && systemPromptTextarea && contextTemplateTextarea && modelNameInput) {
         useSystemAnswerCheckbox.addEventListener('change', toggleFields);
+    }
+
+    // Sync primary color picker and text input
+    const colorPicker = document.getElementById('my_ai_chat_primary_color_picker');
+    const colorInput = document.getElementById('my_ai_chat_primary_color');
+
+    if (colorPicker && colorInput) {
+        colorPicker.addEventListener('input', function() {
+            colorInput.value = colorPicker.value;
+        });
+        colorInput.addEventListener('input', function() {
+            const hex = colorInput.value.trim();
+            if (/^#[0-9A-F]{6}$/i.test(hex)) {
+                colorPicker.value = hex;
+            }
+        });
     }
 });
 </script>
