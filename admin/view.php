@@ -3,21 +3,21 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-$system_prompt          = get_option( 'my_ai_chat_system_prompt', my_ai_chat_default_system_prompt() );
-$product_card_template  = get_option( 'my_ai_chat_product_card_template', my_ai_chat_default_product_card_template() );
-$context_template       = get_option( 'my_ai_chat_context_template', my_ai_chat_default_context_template() );
-$ollama_url             = get_option( 'my_ai_chat_ollama_url', 'http://host.docker.internal:11434' );
-$model_name             = get_option( 'my_ai_chat_model_name', 'qwen2.5:1.5b' );
-$temperature            = get_option( 'my_ai_chat_temperature', '0.3' );
-$qdrant_api_url         = get_option( 'my_ai_chat_qdrant_api_url', 'http://host.docker.internal:6333' );
-$qdrant_collection_name = get_option( 'my_ai_chat_qdrant_collection_name', 'wp_products_collection' );
-$embedding_vector_size  = get_option( 'my_ai_chat_embedding_vector_size', 768 );
-$model_embed            = get_option( 'my_ai_chat_model_embed', 'nomic-embed-text' );
-$engine                 = get_option( 'my_ai_chat_engine', 'ollama' );
-$use_system_answer      = get_option( 'my_ai_chat_use_system_answer', '1' );
-$primary_color          = get_option( 'my_ai_chat_primary_color', '#0073aa' );
-if ( empty( $primary_color ) ) {
-    $primary_color = '#0073aa';
+$my_ai_chat_system_prompt          = get_option( 'my_ai_chat_system_prompt', my_ai_chat_default_system_prompt() );
+$my_ai_chat_product_card_template  = get_option( 'my_ai_chat_product_card_template', my_ai_chat_default_product_card_template() );
+$my_ai_chat_context_template       = get_option( 'my_ai_chat_context_template', my_ai_chat_default_context_template() );
+$my_ai_chat_ollama_url             = get_option( 'my_ai_chat_ollama_url', 'http://host.docker.internal:11434' );
+$my_ai_chat_model_name             = get_option( 'my_ai_chat_model_name', 'qwen2.5:1.5b' );
+$my_ai_chat_temperature            = get_option( 'my_ai_chat_temperature', '0.3' );
+$my_ai_chat_qdrant_api_url         = get_option( 'my_ai_chat_qdrant_api_url', 'http://host.docker.internal:6333' );
+$my_ai_chat_qdrant_collection_name = get_option( 'my_ai_chat_qdrant_collection_name', 'wp_products_collection' );
+$my_ai_chat_embedding_vector_size  = get_option( 'my_ai_chat_embedding_vector_size', 768 );
+$my_ai_chat_model_embed            = get_option( 'my_ai_chat_model_embed', 'nomic-embed-text' );
+$my_ai_chat_engine                 = get_option( 'my_ai_chat_engine', 'ollama' );
+$my_ai_chat_use_system_answer      = get_option( 'my_ai_chat_use_system_answer', '1' );
+$my_ai_chat_primary_color          = get_option( 'my_ai_chat_primary_color', '#0073aa' );
+if ( empty( $my_ai_chat_primary_color ) ) {
+    $my_ai_chat_primary_color = '#0073aa';
 }
 ?>
 
@@ -272,21 +272,21 @@ if ( empty( $primary_color ) ) {
                         <div class="ai-chat-row">
                             <label for="my_ai_chat_engine"><?php esc_html_e( 'AI Engine (LLM Provider)', 'my-ai-chat' ); ?></label>
                             <select name="my_ai_chat_engine" id="my_ai_chat_engine">
-                                <option value="ollama" <?php selected( $engine, 'ollama' ); ?>><?php esc_html_e( 'Ollama (Local Qwen)', 'my-ai-chat' ); ?></option>
-                                <option value="gpt" <?php selected( $engine, 'gpt' ); ?>><?php esc_html_e( 'OpenAI API (ChatGPT)', 'my-ai-chat' ); ?></option>
+                                <option value="ollama" <?php selected( $my_ai_chat_engine, 'ollama' ); ?>><?php esc_html_e( 'Ollama (Local Qwen)', 'my-ai-chat' ); ?></option>
+                                <option value="gpt" <?php selected( $my_ai_chat_engine, 'gpt' ); ?>><?php esc_html_e( 'OpenAI API (ChatGPT)', 'my-ai-chat' ); ?></option>
                             </select>
                             <p class="description"><?php esc_html_e( 'Which neural network will formulate the final answer for the customer.', 'my-ai-chat' ); ?></p>
                         </div>
 
                         <div class="ai-chat-row">
                             <label for="my_ai_chat_ollama_url"><?php esc_html_e( 'Ollama API URL', 'my-ai-chat' ); ?></label>
-                            <input type="url" id="my_ai_chat_ollama_url" name="my_ai_chat_ollama_url" value="<?php echo esc_url( $ollama_url ); ?>" class="code-font">
+                            <input type="url" id="my_ai_chat_ollama_url" name="my_ai_chat_ollama_url" value="<?php echo esc_url( $my_ai_chat_ollama_url ); ?>" class="code-font">
                             <p class="description"><?php esc_html_e( 'For Docker containers, usually use', 'my-ai-chat' ); ?> <code>http://host.docker.internal:11434</code></p>
                         </div>
 
                         <div class="ai-chat-row">
                             <label for="my_ai_chat_temperature"><?php esc_html_e( 'Creativity Temperature (Temperature)', 'my-ai-chat' ); ?></label>
-                            <input type="number" id="my_ai_chat_temperature" name="my_ai_chat_temperature" value="<?php echo esc_attr( $temperature ); ?>" step="0.1" min="0" max="1">
+                            <input type="number" id="my_ai_chat_temperature" name="my_ai_chat_temperature" value="<?php echo esc_attr( $my_ai_chat_temperature ); ?>" step="0.1" min="0" max="1">
                             <p class="description"><?php esc_html_e( 'Lower values (e.g. 0.2) make the bot stick more closely to the context. Higher values add creativity.', 'my-ai-chat' ); ?></p>
                         </div>
                     </div>
@@ -298,20 +298,20 @@ if ( empty( $primary_color ) ) {
 
                     <div class="ai-chat-row">
                         <label for="my_ai_chat_qdrant_api_url"><?php esc_html_e( 'Qdrant API URL', 'my-ai-chat' ); ?></label>
-                        <input type="url" id="my_ai_chat_qdrant_api_url" name="my_ai_chat_qdrant_api_url" value="<?php echo esc_url( $qdrant_api_url ); ?>" class="code-font">
+                        <input type="url" id="my_ai_chat_qdrant_api_url" name="my_ai_chat_qdrant_api_url" value="<?php echo esc_url( $my_ai_chat_qdrant_api_url ); ?>" class="code-font">
                         <p class="description"><?php esc_html_e( 'For Docker containers, usually use', 'my-ai-chat' ); ?> <code>http://host.docker.internal:6333</code></p>
                     </div>
 
                     <div class="ai-chat-grid" style="margin-top: 16px;">
                         <div class="ai-chat-row">
                             <label for="my_ai_chat_qdrant_collection_name"><?php esc_html_e( 'Qdrant Collection Name', 'my-ai-chat' ); ?></label>
-                            <input type="text" id="my_ai_chat_qdrant_collection_name" name="my_ai_chat_qdrant_collection_name" value="<?php echo esc_attr( $qdrant_collection_name ); ?>" class="code-font">
+                            <input type="text" id="my_ai_chat_qdrant_collection_name" name="my_ai_chat_qdrant_collection_name" value="<?php echo esc_attr( $my_ai_chat_qdrant_collection_name ); ?>" class="code-font">
                             <p class="description"><?php esc_html_e( 'For example:', 'my-ai-chat' ); ?> <code>wp_products_collection</code></p>
                         </div>
 
                         <div class="ai-chat-row">
                             <label for="my_ai_chat_embedding_vector_size"><?php esc_html_e( 'Embedding Vector Size', 'my-ai-chat' ); ?></label>
-                            <input type="number" id="my_ai_chat_embedding_vector_size" name="my_ai_chat_embedding_vector_size" value="<?php echo esc_attr( $embedding_vector_size ); ?>" step="1" min="1">
+                            <input type="number" id="my_ai_chat_embedding_vector_size" name="my_ai_chat_embedding_vector_size" value="<?php echo esc_attr( $my_ai_chat_embedding_vector_size ); ?>" step="1" min="1">
                             <p class="description"><?php esc_html_e( 'For example:', 'my-ai-chat' ); ?> <code>768</code></p>
                         </div>
                     </div>
@@ -329,25 +329,25 @@ if ( empty( $primary_color ) ) {
 
                     <div class="ai-chat-row">
                         <label for="my_ai_chat_model_name"><?php esc_html_e( 'LLM Model Name', 'my-ai-chat' ); ?></label>
-                        <input type="text" id="my_ai_chat_model_name" name="my_ai_chat_model_name" value="<?php echo esc_attr( $model_name ); ?>" class="code-font" <?php if ( ! $use_system_answer ) { echo 'readonly style="opacity: 0.5; background-color: #f0f0f1; cursor: not-allowed;"'; } ?>>
+                        <input type="text" id="my_ai_chat_model_name" name="my_ai_chat_model_name" value="<?php echo esc_attr( $my_ai_chat_model_name ); ?>" class="code-font" <?php if ( ! $my_ai_chat_use_system_answer ) { echo 'readonly style="opacity: 0.5; background-color: #f0f0f1; cursor: not-allowed;"'; } ?>>
                         <p class="description"><?php esc_html_e( 'For example:', 'my-ai-chat' ); ?> <code>qwen2.5:1.5b</code>, <code>llama3:8b</code></p>
                     </div>
 
                     <div class="ai-chat-row">
                         <label for="my_ai_chat_system_prompt"><?php esc_html_e( 'System Prompt', 'my-ai-chat' ); ?></label>
-                        <textarea id="my_ai_chat_system_prompt" name="my_ai_chat_system_prompt" rows="6" class="code-font" <?php if ( ! $use_system_answer ) { echo 'readonly style="opacity: 0.5; background-color: #f0f0f1; cursor: not-allowed;"'; } ?>><?php echo esc_textarea( $system_prompt ); ?></textarea>
+                        <textarea id="my_ai_chat_system_prompt" name="my_ai_chat_system_prompt" rows="6" class="code-font" <?php if ( ! $my_ai_chat_use_system_answer ) { echo 'readonly style="opacity: 0.5; background-color: #f0f0f1; cursor: not-allowed;"'; } ?>><?php echo esc_textarea( $my_ai_chat_system_prompt ); ?></textarea>
                         <p class="description"><?php esc_html_e( 'Instructions for the model: its role, behavior, formatting rules for links, and the language of communication.', 'my-ai-chat' ); ?></p>
                     </div>
 
                     <div class="ai-chat-row" style="margin-top: 16px;">
                         <label for="my_ai_chat_context_template"><?php esc_html_e( 'RAG Context Template', 'my-ai-chat' ); ?></label>
-                        <textarea id="my_ai_chat_context_template" name="my_ai_chat_context_template" rows="3" class="code-font" <?php if ( ! $use_system_answer ) { echo 'readonly style="opacity: 0.5; background-color: #f0f0f1; cursor: not-allowed;"'; } ?>><?php echo esc_textarea( $context_template ); ?></textarea>
+                        <textarea id="my_ai_chat_context_template" name="my_ai_chat_context_template" rows="3" class="code-font" <?php if ( ! $my_ai_chat_use_system_answer ) { echo 'readonly style="opacity: 0.5; background-color: #f0f0f1; cursor: not-allowed;"'; } ?>><?php echo esc_textarea( $my_ai_chat_context_template ); ?></textarea>
                         <p class="description"><?php esc_html_e( 'This text will be added at the very beginning of the data block that the bot retrieved from Qdrant.', 'my-ai-chat' ); ?></p>
                     </div>
 
                     <div class="ai-chat-row" style="margin-top: 16px;">
                         <label for="my_ai_chat_product_card_template"><?php esc_html_e( 'Product Card Template (No-AI Mode)', 'my-ai-chat' ); ?></label>
-                        <textarea id="my_ai_chat_product_card_template" name="my_ai_chat_product_card_template" rows="5" class="code-font"><?php echo esc_textarea( $product_card_template ); ?></textarea>
+                        <textarea id="my_ai_chat_product_card_template" name="my_ai_chat_product_card_template" rows="5" class="code-font"><?php echo esc_textarea( $my_ai_chat_product_card_template ); ?></textarea>
                         <p class="description">
                             <?php esc_html_e( 'HTML template for displaying a product in chat when AI is disabled. Available placeholders:', 'my-ai-chat' ); ?><br>
                             <code>{title}</code> — <?php esc_html_e( 'product name', 'my-ai-chat' ); ?> &nbsp;|&nbsp;
@@ -364,7 +364,7 @@ if ( empty( $primary_color ) ) {
                     <div class="ai-chat-row">
                         <label for="my_ai_chat_primary_color"><?php esc_html_e( 'Primary Color', 'my-ai-chat' ); ?></label>
                         <div style="display: flex; gap: 10px; align-items: center;">
-                            <input type="color" id="my_ai_chat_primary_color_picker" value="<?php echo esc_attr( $primary_color ); ?>" style="width: 50px; height: 30px; padding: 0; border: 1px solid #8c8f94; border-radius: 4px; cursor: pointer;">
+                            <input type="color" id="my_ai_chat_primary_color_picker" value="<?php echo esc_attr( $my_ai_chat_primary_color ); ?>" style="width: 50px; height: 30px; padding: 0; border: 1px solid #8c8f94; border-radius: 4px; cursor: pointer;">
                             <input type="text" id="my_ai_chat_primary_color" name="my_ai_chat_primary_color" value="<?php echo esc_attr( get_option( 'my_ai_chat_primary_color', '#0073aa' ) ); ?>" class="code-font" style="width: 120px;" placeholder="#0073aa">
                         </div>
                         <p class="description"><?php esc_html_e( 'Choose the primary color for the chat widget header and toggle button. If left empty, #0073aa will be used.', 'my-ai-chat' ); ?></p>
@@ -378,7 +378,7 @@ if ( empty( $primary_color ) ) {
 
                     <div class="ai-chat-row">
                         <label for="my_ai_chat_model_embed"><?php esc_html_e( 'Embedding Model:', 'my-ai-chat' ); ?></label>
-                        <input type="text" name="my_ai_chat_model_embed" id="my_ai_chat_model_embed" value="<?php echo esc_attr( $model_embed ); ?>" class="code-font">
+                        <input type="text" name="my_ai_chat_model_embed" id="my_ai_chat_model_embed" value="<?php echo esc_attr( $my_ai_chat_model_embed ); ?>" class="code-font">
                         <p class="description warning-alert">
                             <?php esc_html_e( 'When changing this model, you MUST run re-indexing again!', 'my-ai-chat' ); ?>
                         </p>

@@ -237,11 +237,11 @@ msgstr "Запустить переиндексацию"
 msgid "Checking environment readiness..."
 msgstr "Проверка готовности окружения..."
 
-msgid "Critical error: Embedding model '%s' not found!\nRun: ollama pull %s"
-msgstr "Критическая ошибка: Модель эмбеддингов «%s» не найдена!\nВыполните: ollama pull %s"
+msgid "Critical error: Embedding model '%1$s' not found!\nRun: ollama pull %2$s"
+msgstr "Критическая ошибка: Модель эмбеддингов «%1$s» не найдена!\nВыполните: ollama pull %2$s"
 
-msgid "Critical error: Model '%s' not found!\nRun: ollama pull %s"
-msgstr "Критическая ошибка: Модель «%s» не найдена!\nВыполните: ollama pull %s"
+msgid "Critical error: Model '%1$s' not found!\nRun: ollama pull %2$s"
+msgstr "Критическая ошибка: Модель «%1$s» не найдена!\nВыполните: ollama pull %2$s"
 
 msgid "Checking/creating collection in Qdrant..."
 msgstr "Проверяем/создаём коллекцию в Qdrant..."
@@ -279,5 +279,5 @@ msgstr "ОТВЕТ БОТА"
 msgid "cURL error for ID %d: "
 msgstr "Ошибка cURL для ID %d: "
 
-msgid "Qdrant returned code %d for ID %d. Response: "
-msgstr "Qdrant вернул код %d для ID %d. Ответ: "
+msgid "Qdrant returned code %1$d for ID %2$d. Response: "
+msgstr "Qdrant вернул код %1$d для ID %2$d. Ответ: "
