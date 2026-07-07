@@ -14,6 +14,10 @@ $my_ai_chat_qdrant_collection_name = get_option( 'my_ai_chat_qdrant_collection_n
 $my_ai_chat_embedding_vector_size  = get_option( 'my_ai_chat_embedding_vector_size', 768 );
 $my_ai_chat_model_embed            = get_option( 'my_ai_chat_model_embed', 'nomic-embed-text' );
 $my_ai_chat_engine                 = get_option( 'my_ai_chat_engine', 'ollama' );
+$my_ai_chat_openai_api_key         = get_option( 'my_ai_chat_openai_api_key', '' );
+$my_ai_chat_openai_model           = get_option( 'my_ai_chat_openai_model', 'gpt-4o-mini' );
+$my_ai_chat_openai_model_embed     = get_option( 'my_ai_chat_openai_model_embed', 'text-embedding-3-small' );
+$my_ai_chat_qdrant_api_key         = get_option( 'my_ai_chat_qdrant_api_key', '' );
 $my_ai_chat_use_system_answer      = get_option( 'my_ai_chat_use_system_answer', '1' );
 $my_ai_chat_primary_color          = get_option( 'my_ai_chat_primary_color', '#0073aa' );
 if ( empty( $my_ai_chat_primary_color ) ) {
@@ -278,10 +282,28 @@ if ( empty( $my_ai_chat_primary_color ) ) {
                             <p class="description"><?php esc_html_e( 'Which neural network will formulate the final answer for the customer.', 'my-ai-chat' ); ?></p>
                         </div>
 
-                        <div class="ai-chat-row">
+                        <div class="ai-chat-row mac-engine-ollama">
                             <label for="my_ai_chat_ollama_url"><?php esc_html_e( 'Ollama API URL', 'my-ai-chat' ); ?></label>
                             <input type="url" id="my_ai_chat_ollama_url" name="my_ai_chat_ollama_url" value="<?php echo esc_url( $my_ai_chat_ollama_url ); ?>" class="code-font">
                             <p class="description"><?php esc_html_e( 'For Docker containers, usually use', 'my-ai-chat' ); ?> <code>http://host.docker.internal:11434</code></p>
+                        </div>
+
+                        <div class="ai-chat-row mac-engine-openai">
+                            <label for="my_ai_chat_openai_api_key"><?php esc_html_e( 'OpenAI API Key', 'my-ai-chat' ); ?></label>
+                            <input type="password" id="my_ai_chat_openai_api_key" name="my_ai_chat_openai_api_key" value="<?php echo esc_attr( $my_ai_chat_openai_api_key ); ?>" class="code-font" autocomplete="new-password" placeholder="sk-...">
+                            <p class="description"><?php esc_html_e( 'Required when the OpenAI engine is selected. Create a key at platform.openai.com.', 'my-ai-chat' ); ?></p>
+                        </div>
+
+                        <div class="ai-chat-row mac-engine-openai">
+                            <label for="my_ai_chat_openai_model"><?php esc_html_e( 'OpenAI Chat Model', 'my-ai-chat' ); ?></label>
+                            <input type="text" id="my_ai_chat_openai_model" name="my_ai_chat_openai_model" value="<?php echo esc_attr( $my_ai_chat_openai_model ); ?>" class="code-font">
+                            <p class="description"><?php esc_html_e( 'For example:', 'my-ai-chat' ); ?> <code>gpt-4o-mini</code>, <code>gpt-4o</code></p>
+                        </div>
+
+                        <div class="ai-chat-row mac-engine-openai">
+                            <label for="my_ai_chat_openai_model_embed"><?php esc_html_e( 'OpenAI Embedding Model', 'my-ai-chat' ); ?></label>
+                            <input type="text" id="my_ai_chat_openai_model_embed" name="my_ai_chat_openai_model_embed" value="<?php echo esc_attr( $my_ai_chat_openai_model_embed ); ?>" class="code-font">
+                            <p class="description"><?php esc_html_e( 'For example:', 'my-ai-chat' ); ?> <code>text-embedding-3-small</code>. <?php esc_html_e( 'When changing the engine or embedding model, update the vector size, re-create the Qdrant collection and run re-indexing!', 'my-ai-chat' ); ?></p>
                         </div>
 
                         <div class="ai-chat-row">
@@ -299,7 +321,13 @@ if ( empty( $my_ai_chat_primary_color ) ) {
                     <div class="ai-chat-row">
                         <label for="my_ai_chat_qdrant_api_url"><?php esc_html_e( 'Qdrant API URL', 'my-ai-chat' ); ?></label>
                         <input type="url" id="my_ai_chat_qdrant_api_url" name="my_ai_chat_qdrant_api_url" value="<?php echo esc_url( $my_ai_chat_qdrant_api_url ); ?>" class="code-font">
-                        <p class="description"><?php esc_html_e( 'For Docker containers, usually use', 'my-ai-chat' ); ?> <code>http://host.docker.internal:6333</code></p>
+                        <p class="description"><?php esc_html_e( 'For Docker containers, usually use', 'my-ai-chat' ); ?> <code>http://host.docker.internal:6333</code>. <?php esc_html_e( 'For Qdrant Cloud, use your cluster URL.', 'my-ai-chat' ); ?></p>
+                    </div>
+
+                    <div class="ai-chat-row" style="margin-top: 16px;">
+                        <label for="my_ai_chat_qdrant_api_key"><?php esc_html_e( 'Qdrant API Key', 'my-ai-chat' ); ?></label>
+                        <input type="password" id="my_ai_chat_qdrant_api_key" name="my_ai_chat_qdrant_api_key" value="<?php echo esc_attr( $my_ai_chat_qdrant_api_key ); ?>" class="code-font" autocomplete="new-password">
+                        <p class="description"><?php esc_html_e( 'Leave empty for a local Qdrant without authentication. Required for Qdrant Cloud.', 'my-ai-chat' ); ?></p>
                     </div>
 
                     <div class="ai-chat-grid" style="margin-top: 16px;">
@@ -312,7 +340,7 @@ if ( empty( $my_ai_chat_primary_color ) ) {
                         <div class="ai-chat-row">
                             <label for="my_ai_chat_embedding_vector_size"><?php esc_html_e( 'Embedding Vector Size', 'my-ai-chat' ); ?></label>
                             <input type="number" id="my_ai_chat_embedding_vector_size" name="my_ai_chat_embedding_vector_size" value="<?php echo esc_attr( $my_ai_chat_embedding_vector_size ); ?>" step="1" min="1">
-                            <p class="description"><?php esc_html_e( 'For example:', 'my-ai-chat' ); ?> <code>768</code></p>
+                            <p class="description"><code>768</code> — nomic-embed-text (Ollama), <code>1536</code> — text-embedding-3-small (OpenAI)</p>
                         </div>
                     </div>
                 </div>
@@ -327,7 +355,7 @@ if ( empty( $my_ai_chat_primary_color ) ) {
                         <p class="description"><?php esc_html_e( 'Enable AI usage for answering questions. If disabled, the bot will only respond from the knowledge base.', 'my-ai-chat' ); ?></p>
                     </div>
 
-                    <div class="ai-chat-row">
+                    <div class="ai-chat-row mac-engine-ollama">
                         <label for="my_ai_chat_model_name"><?php esc_html_e( 'LLM Model Name', 'my-ai-chat' ); ?></label>
                         <input type="text" id="my_ai_chat_model_name" name="my_ai_chat_model_name" value="<?php echo esc_attr( $my_ai_chat_model_name ); ?>" class="code-font" <?php if ( ! $my_ai_chat_use_system_answer ) { echo 'readonly style="opacity: 0.5; background-color: #f0f0f1; cursor: not-allowed;"'; } ?>>
                         <p class="description"><?php esc_html_e( 'For example:', 'my-ai-chat' ); ?> <code>qwen2.5:1.5b</code>, <code>llama3:8b</code></p>
@@ -376,7 +404,7 @@ if ( empty( $my_ai_chat_primary_color ) ) {
                     <h4><span class="dashicons dashicons-warning"></span> <?php esc_html_e( 'Danger Zone (Vector Index)', 'my-ai-chat' ); ?></h4>
                     <p><?php esc_html_e( 'The settings below determine how product texts are converted into mathematical vectors. Changing the embedding model will make the old database incompatible!', 'my-ai-chat' ); ?></p>
 
-                    <div class="ai-chat-row">
+                    <div class="ai-chat-row mac-engine-ollama">
                         <label for="my_ai_chat_model_embed"><?php esc_html_e( 'Embedding Model:', 'my-ai-chat' ); ?></label>
                         <input type="text" name="my_ai_chat_model_embed" id="my_ai_chat_model_embed" value="<?php echo esc_attr( $my_ai_chat_model_embed ); ?>" class="code-font">
                         <p class="description warning-alert">
@@ -450,6 +478,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (useSystemAnswerCheckbox && systemPromptTextarea && contextTemplateTextarea && modelNameInput) {
         useSystemAnswerCheckbox.addEventListener('change', toggleFields);
+    }
+
+    // Show/hide engine-specific fields (Ollama vs OpenAI)
+    const engineSelect = document.getElementById('my_ai_chat_engine');
+
+    function toggleEngineFields() {
+        const isGpt = engineSelect.value === 'gpt';
+        document.querySelectorAll('.mac-engine-openai').forEach(function(el) {
+            el.style.display = isGpt ? '' : 'none';
+        });
+        document.querySelectorAll('.mac-engine-ollama').forEach(function(el) {
+            el.style.display = isGpt ? 'none' : '';
+        });
+    }
+
+    if (engineSelect) {
+        engineSelect.addEventListener('change', toggleEngineFields);
+        toggleEngineFields();
     }
 
     // Sync primary color picker and text input

@@ -281,3 +281,36 @@ msgstr "Помилка cURL для ID %d: "
 
 msgid "Qdrant returned code %1$d for ID %2$d. Response: "
 msgstr "Qdrant повернув код %1$d для ID %2$d. Відповідь: "
+
+msgid "The OpenAI API key is not set. Enter it on the AI Chat settings page."
+msgstr "Ключ API OpenAI не задано. Вкажіть його на сторінці налаштувань AI Chat."
+
+msgid "AI engine error (code %d)."
+msgstr "Помилка AI-рушія (код %d)."
+
+msgid "Critical error: The OpenAI API key is not set. Enter it on the AI Chat settings page."
+msgstr "Критична помилка: Ключ API OpenAI не задано. Вкажіть його на сторінці налаштувань AI Chat."
+
+msgid "OpenAI API Key"
+msgstr "Ключ API OpenAI"
+
+msgid "Required when the OpenAI engine is selected. Create a key at platform.openai.com."
+msgstr "Обов'язково при виборі рушія OpenAI. Створіть ключ на platform.openai.com."
+
+msgid "OpenAI Chat Model"
+msgstr "Модель чату OpenAI"
+
+msgid "OpenAI Embedding Model"
+msgstr "Модель ембедингів OpenAI"
+
+msgid "When changing the engine or embedding model, update the vector size, re-create the Qdrant collection and run re-indexing!"
+msgstr "При зміні рушія або моделі ембедингів оновіть розмір вектора, повторно створіть колекцію Qdrant і запустіть переіндексацію!"
+
+msgid "For Qdrant Cloud, use your cluster URL."
+msgstr "Для Qdrant Cloud вкажіть URL вашого кластера."
+
+msgid "Qdrant API Key"
+msgstr "Ключ API Qdrant"
+
+msgid "Leave empty for a local Qdrant without authentication. Required for Qdrant Cloud."
+msgstr "Залиште порожнім для локального Qdrant без авторизації. Обов'язково для Qdrant Cloud."

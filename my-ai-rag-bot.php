@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: My AI Chat
- * Description: AI chatbot that answers questions based on your site content and WooCommerce products, powered by a local RAG stack (Ollama + Qdrant).
- * Version: 1.1
+ * Description: AI chatbot that answers questions based on your site content and WooCommerce products. Works with a local RAG stack (Ollama + Qdrant) or your OpenAI API key.
+ * Version: 1.2
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Author: Artem Litvinov
@@ -27,13 +27,45 @@ function my_ai_chat_log( $message ) {
 // ДИНАМИЧЕСКИЕ НАСТРОЙКИ ИНФРАСТРУКТУРЫ
 // ==========================================
 
-function my_ai_chat_get_ollama_url() {
-    $url = get_option( 'my_ai_chat_ollama_url', 'http://127.0.0.1:11434' );
-    $url = untrailingslashit( $url );
-    if ( substr( $url, -4 ) !== '/api' ) {
-        $url .= '/api';
+function my_ai_chat_get_ollama_base_url() {
+    $url = untrailingslashit( get_option( 'my_ai_chat_ollama_url', 'http://127.0.0.1:11434' ) );
+    if ( substr( $url, -4 ) === '/api' ) {
+        $url = substr( $url, 0, -4 );
     }
     return $url;
+}
+
+function my_ai_chat_get_ollama_url() {
+    return my_ai_chat_get_ollama_base_url() . '/api';
+}
+
+/**
+ * Returns the active AI engine: 'ollama' (local) or 'gpt' (OpenAI API).
+ */
+function my_ai_chat_get_engine() {
+    return ( 'gpt' === get_option( 'my_ai_chat_engine', 'ollama' ) ) ? 'gpt' : 'ollama';
+}
+
+function my_ai_chat_get_openai_api_key() {
+    return trim( (string) get_option( 'my_ai_chat_openai_api_key', '' ) );
+}
+
+function my_ai_chat_get_openai_base_url() {
+    return untrailingslashit( apply_filters( 'my_ai_chat_openai_base_url', 'https://api.openai.com/v1' ) );
+}
+
+function my_ai_chat_get_chat_model() {
+    if ( 'gpt' === my_ai_chat_get_engine() ) {
+        return get_option( 'my_ai_chat_openai_model', 'gpt-4o-mini' );
+    }
+    return get_option( 'my_ai_chat_model_name', 'qwen2.5:1.5b' );
+}
+
+function my_ai_chat_get_embed_model() {
+    if ( 'gpt' === my_ai_chat_get_engine() ) {
+        return get_option( 'my_ai_chat_openai_model_embed', 'text-embedding-3-small' );
+    }
+    return my_ai_chat_get_model_embed();
 }
 
 function my_ai_chat_get_qdrant_url() {
@@ -89,30 +121,205 @@ function my_ai_chat_check_ollama_model( $model_name ) {
     return false;
 }
 
+/**
+ * Sends a request to Qdrant. Adds the api-key header when a key is configured
+ * (required for Qdrant Cloud, optional for a local instance).
+ *
+ * @param string     $path    Path relative to the Qdrant base URL, e.g. '/collections/foo'.
+ * @param string     $method  HTTP method.
+ * @param array|null $body    Request body (will be JSON-encoded) or null.
+ * @param int        $timeout Request timeout in seconds.
+ * @return array|WP_Error wp_remote_request() result.
+ */
+function my_ai_chat_qdrant_request( $path, $method = 'GET', $body = null, $timeout = 10 ) {
+    $headers = array( 'Content-Type' => 'application/json' );
+
+    $api_key = trim( (string) get_option( 'my_ai_chat_qdrant_api_key', '' ) );
+    if ( ! empty( $api_key ) ) {
+        $headers['api-key'] = $api_key;
+    }
+
+    $args = array(
+        'method'  => $method,
+        'headers' => $headers,
+        'timeout' => $timeout,
+    );
+    if ( null !== $body ) {
+        $args['body'] = json_encode( $body );
+    }
+
+    return wp_remote_request( my_ai_chat_get_qdrant_url() . $path, $args );
+}
+
+/**
+ * Converts text into an embedding vector using the active engine.
+ *
+ * @param string $text Text to embed.
+ * @return array|null Vector on success, null on failure.
+ */
+function my_ai_chat_get_embedding( $text ) {
+    if ( 'gpt' === my_ai_chat_get_engine() ) {
+        $api_key = my_ai_chat_get_openai_api_key();
+        if ( empty( $api_key ) ) {
+            my_ai_chat_log( 'AI Bot Error: OpenAI API key is not set.' );
+            return null;
+        }
+
+        $response = wp_remote_post( my_ai_chat_get_openai_base_url() . '/embeddings', array(
+            'headers' => array(
+                'Content-Type'  => 'application/json',
+                'Authorization' => 'Bearer ' . $api_key,
+            ),
+            'body'    => json_encode( array(
+                'model' => my_ai_chat_get_embed_model(),
+                'input' => $text,
+            ) ),
+            'timeout' => 90,
+        ) );
+
+        if ( is_wp_error( $response ) ) {
+            my_ai_chat_log( 'AI Bot OpenAI Embeddings Error: ' . $response->get_error_message() );
+            return null;
+        }
+
+        $code = wp_remote_retrieve_response_code( $response );
+        $data = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( 200 !== $code ) {
+            my_ai_chat_log( "AI Bot OpenAI Embeddings Error: Code {$code}. Response: " . substr( wp_remote_retrieve_body( $response ), 0, 500 ) );
+            return null;
+        }
+
+        $vector = $data['data'][0]['embedding'] ?? null;
+        return is_array( $vector ) ? $vector : null;
+    }
+
+    // Ollama.
+    $response = wp_remote_post( my_ai_chat_get_ollama_url() . '/embeddings', array(
+        'headers' => array( 'Content-Type' => 'application/json' ),
+        'body'    => json_encode( array(
+            'model'  => my_ai_chat_get_embed_model(),
+            'prompt' => $text,
+        ) ),
+        'timeout' => 90,
+    ) );
+
+    if ( is_wp_error( $response ) ) {
+        my_ai_chat_log( 'AI Bot Ollama Embeddings Error: ' . $response->get_error_message() );
+        return null;
+    }
+
+    $data   = json_decode( wp_remote_retrieve_body( $response ), true );
+    $vector = $data['embedding'] ?? null;
+    return is_array( $vector ) ? $vector : null;
+}
+
+/**
+ * Generates a chat answer using the active engine. Both Ollama and OpenAI are
+ * called through the OpenAI-compatible /chat/completions API.
+ *
+ * @param string $system_prompt System instruction for the model.
+ * @param string $user_content  User message (context + question).
+ * @return string|WP_Error Answer text or WP_Error on failure.
+ */
+function my_ai_chat_generate_answer( $system_prompt, $user_content ) {
+    $headers = array(
+        'Content-Type' => 'application/json',
+        'Accept'       => 'application/json',
+    );
+
+    if ( 'gpt' === my_ai_chat_get_engine() ) {
+        $api_key = my_ai_chat_get_openai_api_key();
+        if ( empty( $api_key ) ) {
+            return new WP_Error( 'my_ai_chat_no_api_key', __( 'The OpenAI API key is not set. Enter it on the AI Chat settings page.', 'my-ai-chat' ) );
+        }
+        $headers['Authorization'] = 'Bearer ' . $api_key;
+        $url = my_ai_chat_get_openai_base_url() . '/chat/completions';
+    } else {
+        $url = my_ai_chat_get_ollama_base_url() . '/v1/chat/completions';
+    }
+
+    $request_body = array(
+        'model'       => my_ai_chat_get_chat_model(),
+        'messages'    => array(
+            array( 'role' => 'system', 'content' => $system_prompt ),
+            array( 'role' => 'user',   'content' => $user_content ),
+        ),
+        'temperature' => (float) get_option( 'my_ai_chat_temperature', '0.3' ),
+        'stream'      => false,
+    );
+
+    $response = wp_remote_post( $url, array(
+        'headers' => $headers,
+        'body'    => json_encode( $request_body ),
+        'timeout' => 90,
+    ) );
+
+    if ( is_wp_error( $response ) ) {
+        my_ai_chat_log( 'AI Bot Chat Error: ' . $response->get_error_message() );
+        return new WP_Error( 'my_ai_chat_connection', __( 'Sorry, there was an error communicating with the neural network.', 'my-ai-chat' ) );
+    }
+
+    $code = wp_remote_retrieve_response_code( $response );
+    $body = wp_remote_retrieve_body( $response );
+
+    if ( 200 !== $code ) {
+        my_ai_chat_log( "AI Bot Chat Error: Code {$code}. Response: " . substr( $body, 0, 500 ) );
+        /* translators: %d: HTTP status code returned by the AI service. */
+        return new WP_Error( 'my_ai_chat_http', sprintf( __( 'AI engine error (code %d).', 'my-ai-chat' ), $code ) );
+    }
+
+    $data   = json_decode( $body, true );
+    $answer = $data['choices'][0]['message']['content'] ?? null;
+
+    if ( empty( $answer ) || ! is_string( $answer ) ) {
+        return new WP_Error( 'my_ai_chat_parse', __( 'Failed to parse the response from the model.', 'my-ai-chat' ) );
+    }
+
+    return trim( $answer );
+}
+
 // Plugin activation hook
-register_activation_hook( __FILE__, 'my_ai_chat_initialize_vector_db' );
+register_activation_hook( __FILE__, 'my_ai_chat_activate' );
 
-function my_ai_chat_initialize_vector_db() {
-    $collection_url = my_ai_chat_get_qdrant_url() . '/collections/' . my_ai_chat_get_collection_name();
+function my_ai_chat_activate() {
+    my_ai_chat_initialize_vector_db();
+}
 
-    $check_response = wp_remote_get( $collection_url );
+/**
+ * Makes sure the Qdrant collection exists.
+ *
+ * Qdrant does not allow changing the vector size of an existing collection, so
+ * when $recreate_on_mismatch is true and the configured size differs from the
+ * collection, the collection is deleted and created anew (a full re-index is
+ * required afterwards). Only explicit re-index actions pass true here.
+ *
+ * @param bool $recreate_on_mismatch Recreate the collection when the vector size differs.
+ */
+function my_ai_chat_initialize_vector_db( $recreate_on_mismatch = false ) {
+    $collection_path = '/collections/' . my_ai_chat_get_collection_name();
+    $expected_size   = my_ai_chat_get_vector_size();
+
+    $check_response = my_ai_chat_qdrant_request( $collection_path );
     if ( ! is_wp_error( $check_response ) && wp_remote_retrieve_response_code( $check_response ) === 200 ) {
-        return;
+        $info         = json_decode( wp_remote_retrieve_body( $check_response ), true );
+        $current_size = (int) ( $info['result']['config']['params']['vectors']['size'] ?? 0 );
+
+        if ( $current_size === $expected_size || ! $recreate_on_mismatch ) {
+            return;
+        }
+
+        my_ai_chat_log( "AI Bot: Vector size changed ({$current_size} -> {$expected_size}), recreating the Qdrant collection." );
+        my_ai_chat_qdrant_request( $collection_path, 'DELETE' );
     }
 
     $body = array(
         'vectors' => array(
-            'size'     => my_ai_chat_get_vector_size(),
+            'size'     => $expected_size,
             'distance' => 'Cosine'
         )
     );
 
-    $response = wp_remote_request( $collection_url, array(
-        'method'  => 'PUT',
-        'headers' => array( 'Content-Type' => 'application/json' ),
-        'body'    => json_encode( $body ),
-        'timeout' => 10
-    ) );
+    $response = my_ai_chat_qdrant_request( $collection_path, 'PUT', $body );
 
     if ( is_wp_error( $response ) ) {
         my_ai_chat_log( 'AI RAG Bot Error: Failed to connect to Qdrant: ' . $response->get_error_message() );
@@ -263,29 +470,13 @@ function my_ai_chat_execute_background_indexing( $post_id ) {
         return;
     }
 
-    $ollama_response = wp_remote_post( my_ai_chat_get_ollama_url() . '/embeddings', array(
-        'headers' => array( 'Content-Type' => 'application/json' ),
-        'body'    => json_encode( array(
-            'model'  => get_option( 'my_ai_chat_model_embed', 'nomic-embed-text' ),
-            'prompt' => $text_to_embed
-        ) ),
-        'timeout' => 90
-    ) );
-
-    if ( is_wp_error( $ollama_response ) ) {
-        my_ai_chat_log( 'AI Bot Cron Ollama Error: ' . $ollama_response->get_error_message() );
-        return;
-    }
-
-    $ollama_body = json_decode( wp_remote_retrieve_body( $ollama_response ), true );
-    $vector = $ollama_body['embedding'] ?? null;
+    $vector = my_ai_chat_get_embedding( $text_to_embed );
 
     if ( ! is_array( $vector ) ) {
-        my_ai_chat_log( 'AI Bot Cron Error: Ollama returned no vector for ID ' . $post_id );
+        my_ai_chat_log( 'AI Bot Cron Error: Embedding engine returned no vector for ID ' . $post_id );
         return;
     }
 
-    $qdrant_url = my_ai_chat_get_qdrant_url() . '/collections/' . my_ai_chat_get_collection_name() . '/points?wait=true';
     $qdrant_body = array(
         'points' => array(
             array(
@@ -301,12 +492,7 @@ function my_ai_chat_execute_background_indexing( $post_id ) {
         )
     );
 
-    $qdrant_response = wp_remote_request( $qdrant_url, array(
-        'method'  => 'PUT',
-        'headers' => array( 'Content-Type' => 'application/json' ),
-        'body'    => json_encode( $qdrant_body ),
-        'timeout' => 15
-    ) );
+    $qdrant_response = my_ai_chat_qdrant_request( '/collections/' . my_ai_chat_get_collection_name() . '/points?wait=true', 'PUT', $qdrant_body, 15 );
 
     if ( is_wp_error( $qdrant_response ) ) {
         my_ai_chat_log( "AI Bot Cron Qdrant Error for ID {$post_id}: " . $qdrant_response->get_error_message() );
@@ -323,15 +509,11 @@ function my_ai_chat_execute_background_indexing( $post_id ) {
 add_action( 'wp_trash_post', 'my_ai_chat_delete_post_from_qdrant' );
 add_action( 'before_delete_post', 'my_ai_chat_delete_post_from_qdrant' );
 function my_ai_chat_delete_post_from_qdrant( $post_id ) {
-    $qdrant_url = my_ai_chat_get_qdrant_url() . '/collections/' . my_ai_chat_get_collection_name() . '/points/delete';
-    $qdrant_body = array( 'points' => array( (int) $post_id ) );
-
-    wp_remote_request( $qdrant_url, array(
-        'method'  => 'POST',
-        'headers' => array( 'Content-Type' => 'application/json' ),
-        'body'    => json_encode( $qdrant_body ),
-        'timeout' => 10
-    ) );
+    my_ai_chat_qdrant_request(
+        '/collections/' . my_ai_chat_get_collection_name() . '/points/delete',
+        'POST',
+        array( 'points' => array( (int) $post_id ) )
+    );
 }
 
 // ==========================================
@@ -345,22 +527,28 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 class My_AI_Chat_CLI_Commands {
 
     public function index( $args, $assoc_args ) {
-        $embedding_model = get_option( 'my_ai_chat_model_embed', 'nomic-embed-text' );
-        $llm_model       = get_option( 'my_ai_chat_model_name', 'qwen2.5:1.5b' );
-
         WP_CLI::line( __( 'Checking environment readiness...', 'my-ai-chat' ) );
 
-        if ( ! my_ai_chat_check_ollama_model( $embedding_model ) ) {
-            /* translators: 1: embedding model name, 2: embedding model name (for the ollama pull command). */
-            WP_CLI::error( sprintf( __( "Critical error: Embedding model '%1\$s' not found!\nRun: ollama pull %2\$s", 'my-ai-chat' ), $embedding_model, $embedding_model ) );
-        }
-        if ( ! my_ai_chat_check_ollama_model( $llm_model ) ) {
-            /* translators: 1: LLM model name, 2: LLM model name (for the ollama pull command). */
-            WP_CLI::error( sprintf( __( "Critical error: Model '%1\$s' not found!\nRun: ollama pull %2\$s", 'my-ai-chat' ), $llm_model, $llm_model ) );
+        if ( 'gpt' === my_ai_chat_get_engine() ) {
+            if ( '' === my_ai_chat_get_openai_api_key() ) {
+                WP_CLI::error( __( 'Critical error: The OpenAI API key is not set. Enter it on the AI Chat settings page.', 'my-ai-chat' ) );
+            }
+        } else {
+            $embedding_model = my_ai_chat_get_embed_model();
+            $llm_model       = my_ai_chat_get_chat_model();
+
+            if ( ! my_ai_chat_check_ollama_model( $embedding_model ) ) {
+                /* translators: 1: embedding model name, 2: embedding model name (for the ollama pull command). */
+                WP_CLI::error( sprintf( __( "Critical error: Embedding model '%1\$s' not found!\nRun: ollama pull %2\$s", 'my-ai-chat' ), $embedding_model, $embedding_model ) );
+            }
+            if ( ! my_ai_chat_check_ollama_model( $llm_model ) ) {
+                /* translators: 1: LLM model name, 2: LLM model name (for the ollama pull command). */
+                WP_CLI::error( sprintf( __( "Critical error: Model '%1\$s' not found!\nRun: ollama pull %2\$s", 'my-ai-chat' ), $llm_model, $llm_model ) );
+            }
         }
 
         WP_CLI::line( __( 'Checking/creating collection in Qdrant...', 'my-ai-chat' ) );
-        my_ai_chat_initialize_vector_db();
+        my_ai_chat_initialize_vector_db( true );
 
         $batch_size = isset( $assoc_args['batch_size'] ) ? intval( $assoc_args['batch_size'] ) : 50;
         if ( $batch_size <= 0 ) $batch_size = 50;
@@ -441,16 +629,7 @@ class My_AI_Chat_CLI_Commands {
 
                 if ( empty( $text_to_embed ) ) { $progress->tick(); continue; }
 
-                $ollama_response = wp_remote_post( my_ai_chat_get_ollama_url() . '/embeddings', array(
-                    'headers' => array( 'Content-Type' => 'application/json' ),
-                    'body'    => json_encode( array( 'model' => $embedding_model, 'prompt' => $text_to_embed ) ),
-                    'timeout' => 90
-                ) );
-
-                if ( is_wp_error( $ollama_response ) ) { $progress->tick(); continue; }
-
-                $ollama_body = json_decode( wp_remote_retrieve_body( $ollama_response ), true );
-                $vector = $ollama_body['embedding'] ?? null;
+                $vector = my_ai_chat_get_embedding( $text_to_embed );
                 if ( ! is_array( $vector ) ) { $progress->tick(); continue; }
 
                 $qdrant_body = array(
@@ -468,14 +647,7 @@ class My_AI_Chat_CLI_Commands {
                     )
                 );
 
-                $qdrant_url = my_ai_chat_get_qdrant_url() . '/collections/' . my_ai_chat_get_collection_name() . '/points?wait=true';
-
-                $qdrant_response = wp_remote_request( $qdrant_url, array(
-                    'method'  => 'PUT',
-                    'headers' => array( 'Content-Type' => 'application/json' ),
-                    'body'    => json_encode( $qdrant_body ),
-                    'timeout' => 10
-                ) );
+                $qdrant_response = my_ai_chat_qdrant_request( '/collections/' . my_ai_chat_get_collection_name() . '/points?wait=true', 'PUT', $qdrant_body );
 
                 if ( is_wp_error( $qdrant_response ) ) {
                     /* translators: %d: post ID. */
@@ -526,26 +698,12 @@ class My_AI_Chat_CLI_Commands {
 function my_ai_chat_search_similar_content( $query_text, $limit = 3 ) {
     if ( empty( $query_text ) ) return array();
 
-    $ollama_response = wp_remote_post( my_ai_chat_get_ollama_url() . '/embeddings', array(
-        'headers' => array( 'Content-Type' => 'application/json' ),
-        'body'    => json_encode( array( 'model' => my_ai_chat_get_model_embed(), 'prompt' => $query_text ) ),
-        'timeout' => 15
-    ) );
-
-    if ( is_wp_error( $ollama_response ) ) return array();
-
-    $ollama_body = json_decode( wp_remote_retrieve_body( $ollama_response ), true );
-    $query_vector = $ollama_body['embedding'] ?? null;
+    $query_vector = my_ai_chat_get_embedding( $query_text );
     if ( ! is_array( $query_vector ) ) return array();
 
-    $qdrant_url = my_ai_chat_get_qdrant_url() . '/collections/' . my_ai_chat_get_collection_name() . '/points/search';
     $qdrant_body = array( 'vector' => $query_vector, 'limit' => $limit, 'with_payload' => true );
 
-    $qdrant_response = wp_remote_post( $qdrant_url, array(
-        'headers' => array( 'Content-Type' => 'application/json' ),
-        'body'    => json_encode( $qdrant_body ),
-        'timeout' => 10
-    ) );
+    $qdrant_response = my_ai_chat_qdrant_request( '/collections/' . my_ai_chat_get_collection_name() . '/points/search', 'POST', $qdrant_body );
 
     if ( is_wp_error( $qdrant_response ) ) return array();
 
@@ -619,55 +777,20 @@ function my_ai_chat_generate_rag_response( $user_question ) {
             $context_text .= sprintf( __( 'Document/Product (Link: %s):', 'my-ai-chat' ), $permalink ) . "\n{$payload_text}\n\n";
         }
 
-        $system_prompt = get_option( 'my_ai_chat_system_prompt', my_ai_chat_default_system_prompt() );
-        $llm_model     = get_option( 'my_ai_chat_model_name', 'qwen2.5:1.5b' );
+        $system_prompt    = get_option( 'my_ai_chat_system_prompt', my_ai_chat_default_system_prompt() );
+        $context_template = get_option( 'my_ai_chat_context_template', my_ai_chat_default_context_template() );
 
-        $full_prompt = __( 'System instruction:', 'my-ai-chat' ) . " {$system_prompt}\n\n" .
-                       __( 'Site context:', 'my-ai-chat' ) . "\n{$context_text}\n" .
-                       __( 'User question:', 'my-ai-chat' ) . " {$user_question}\n" .
-                       __( 'Answer:', 'my-ai-chat' );
+        $user_content = $context_template . "\n\n" .
+                        __( 'Site context:', 'my-ai-chat' ) . "\n{$context_text}\n" .
+                        __( 'User question:', 'my-ai-chat' ) . " {$user_question}";
 
-        $ollama_url = rtrim( my_ai_chat_get_ollama_url(), '/' ) . '/generate';
+        $answer = my_ai_chat_generate_answer( $system_prompt, $user_content );
 
-        $request_body = array(
-            'model'  => $llm_model,
-            'prompt' => $full_prompt,
-            'stream' => false,
-        );
-
-        $ollama_response = wp_remote_request( $ollama_url, array(
-            'method'      => 'POST',
-            'headers'     => array(
-                'Content-Type' => 'application/json',
-                'Accept'       => 'application/json'
-            ),
-            'body'        => json_encode( $request_body ),
-            'timeout'     => 90,
-            'data_format' => 'body'
-        ) );
-
-        if ( is_wp_error( $ollama_response ) ) {
-            my_ai_chat_log( 'AI Bot Ollama Error: ' . $ollama_response->get_error_message() );
-            return __( 'Sorry, there was an error communicating with the neural network.', 'my-ai-chat' );
+        if ( is_wp_error( $answer ) ) {
+            return $answer->get_error_message();
         }
 
-        $response_code = wp_remote_retrieve_response_code( $ollama_response );
-        $response_body = wp_remote_retrieve_body( $ollama_response );
-
-        if ( $response_code !== 200 ) {
-            my_ai_chat_log( "AI Bot Ollama Error: Code {$response_code}. Response: " . substr( $response_body, 0, 500 ) );
-            /* translators: %d: HTTP status code returned by the Ollama server. */
-            return sprintf( __( 'Ollama Error (Code %d): ', 'my-ai-chat' ), $response_code ) . substr($response_body, 0, 100);
-        }
-
-        $ollama_data = json_decode( $response_body, true );
-        $bot_response = $ollama_data['response'] ?? null;
-
-        if ( empty( $bot_response ) ) {
-            return __( 'Failed to parse the response from the model.', 'my-ai-chat' );
-        }
-
-        return trim( $bot_response );
+        return $answer;
     }
 }
 
@@ -714,6 +837,10 @@ function my_ai_chat_register_settings() {
     register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_qdrant_collection_name', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
     register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_embedding_vector_size', array( 'type' => 'integer', 'sanitize_callback' => 'absint' ) );
     register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_engine', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
+    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_openai_api_key', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
+    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_openai_model', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
+    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_openai_model_embed', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
+    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_qdrant_api_key', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
     register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_model_embed', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
     register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_use_system_answer', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
     register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_product_card_template', array( 'type' => 'string', 'sanitize_callback' => 'wp_kses_post' ) );
@@ -739,6 +866,10 @@ function my_ai_chat_handle_mass_indexing_button() {
     if ( ! check_admin_referer( 'ai_bot_mass_index_action', 'ai_bot_nonce' ) || ! current_user_can( 'manage_options' ) ) {
         wp_die( esc_html__( 'You do not have sufficient permissions to perform this action.', 'my-ai-chat' ) );
     }
+
+    // Make sure the collection exists and matches the configured vector size
+    // (recreates it after an engine/model change; a fresh index follows anyway).
+    my_ai_chat_initialize_vector_db( true );
 
     $args = array(
         'post_type'      => array( 'post', 'page', 'product' ),
