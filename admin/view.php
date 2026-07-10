@@ -321,7 +321,29 @@ if ( empty( $my_ai_chat_primary_color ) ) {
                     <div class="ai-chat-row">
                         <label for="my_ai_chat_qdrant_api_url"><?php esc_html_e( 'Qdrant API URL', 'my-ai-chat' ); ?></label>
                         <input type="url" id="my_ai_chat_qdrant_api_url" name="my_ai_chat_qdrant_api_url" value="<?php echo esc_url( $my_ai_chat_qdrant_api_url ); ?>" class="code-font">
-                        <p class="description"><?php esc_html_e( 'For Docker containers, usually use', 'my-ai-chat' ); ?> <code>http://host.docker.internal:6333</code>. <?php esc_html_e( 'For Qdrant Cloud, use your cluster URL.', 'my-ai-chat' ); ?></p>
+                        <p class="description">
+    <?php esc_html_e( 'For Docker containers, usually use', 'my-ai-chat' ); ?> 
+    <code>http://host.docker.internal:6333</code>. 
+    <?php 
+    echo sprintf(
+        /* translators: %s: URL to Qdrant Cloud cluster overview */
+        esc_html__( 'For %s, use your cluster URL.', 'my-ai-chat' ),
+        '<a href="https://cloud.qdrant.io/" target="_blank" rel="noopener">' . esc_html__( 'Qdrant Cloud', 'my-ai-chat' ) . '</a>'
+    ); 
+    ?>
+</p>
+
+<p class="description" style="margin-top: 5px; font-style: italic; color: #64748b;">
+    <strong><?php esc_html_e( 'Quick Setup:', 'my-ai-chat' ); ?></strong> 
+    <?php 
+    echo sprintf(
+        /* translators: 1: Link to sign up, 2: Closing link tag */
+        esc_html__( 'Sign up at %1$sQdrant Cloud Accounts%2$s, create a cluster, and you will find your Endpoint (Cluster URL) and API Key in the cluster overview dashboard.', 'my-ai-chat' ),
+        '<a href="https://cloud.qdrant.io/" target="_blank" rel="noopener">',
+        '</a>'
+    );
+    ?>
+</p>
                     </div>
 
                     <div class="ai-chat-row" style="margin-top: 16px;">
