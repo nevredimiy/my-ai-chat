@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (!button || !input || !messagesContainer || !widget) return;
 
-    const l10n = (typeof aiChatL10n !== 'undefined') ? aiChatL10n : {
+    const l10n = (typeof aloChatL10n !== 'undefined') ? aloChatL10n : {
         serverError: 'Server error',
         noAnswer: 'No answer.',
         connectionError: 'Connection error with server.'
@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', function() {
         botMessageElement.innerText = '...';
 
         try {
-            const apiEndpoint = window.location.origin + '/index.php?rest_route=/aibot/v1/chat';
+            const apiEndpoint = window.location.origin + '/index.php?rest_route=/alochat/v1/chat';
             const response = await fetch(apiEndpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

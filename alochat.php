@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: My AI Chat
+ * Plugin Name: AloChat
  * Description: AI chatbot that answers questions based on your site content and WooCommerce products. Works with a local RAG stack (Ollama + Qdrant) or your OpenAI API key.
  * Version: 1.2
  * Requires at least: 6.0
@@ -8,7 +8,7 @@
  * Author: Artem Litvinov
  * License: GPLv2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain: my-ai-chat
+ * Text Domain: alochat
  * Domain Path: /languages
  */
 
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 /**
  * Logs a message only when WP_DEBUG is enabled.
  */
-function my_ai_chat_log( $message ) {
+function alochat_log( $message ) {
     if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
         error_log( $message ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Guarded by WP_DEBUG, used for diagnostics only.
     }
@@ -27,80 +27,80 @@ function my_ai_chat_log( $message ) {
 // ДИНАМИЧЕСКИЕ НАСТРОЙКИ ИНФРАСТРУКТУРЫ
 // ==========================================
 
-function my_ai_chat_get_ollama_base_url() {
-    $url = untrailingslashit( get_option( 'my_ai_chat_ollama_url', 'http://127.0.0.1:11434' ) );
+function alochat_get_ollama_base_url() {
+    $url = untrailingslashit( get_option( 'alochat_ollama_url', 'http://127.0.0.1:11434' ) );
     if ( substr( $url, -4 ) === '/api' ) {
         $url = substr( $url, 0, -4 );
     }
     return $url;
 }
 
-function my_ai_chat_get_ollama_url() {
-    return my_ai_chat_get_ollama_base_url() . '/api';
+function alochat_get_ollama_url() {
+    return alochat_get_ollama_base_url() . '/api';
 }
 
 /**
  * Returns the active AI engine: 'ollama' (local) or 'gpt' (OpenAI API).
  */
-function my_ai_chat_get_engine() {
-    return ( 'gpt' === get_option( 'my_ai_chat_engine', 'ollama' ) ) ? 'gpt' : 'ollama';
+function alochat_get_engine() {
+    return ( 'gpt' === get_option( 'alochat_engine', 'ollama' ) ) ? 'gpt' : 'ollama';
 }
 
-function my_ai_chat_get_openai_api_key() {
-    return trim( (string) get_option( 'my_ai_chat_openai_api_key', '' ) );
+function alochat_get_openai_api_key() {
+    return trim( (string) get_option( 'alochat_openai_api_key', '' ) );
 }
 
-function my_ai_chat_get_openai_base_url() {
-    return untrailingslashit( apply_filters( 'my_ai_chat_openai_base_url', 'https://api.openai.com/v1' ) );
+function alochat_get_openai_base_url() {
+    return untrailingslashit( apply_filters( 'alochat_openai_base_url', 'https://api.openai.com/v1' ) );
 }
 
-function my_ai_chat_get_chat_model() {
-    if ( 'gpt' === my_ai_chat_get_engine() ) {
-        return get_option( 'my_ai_chat_openai_model', 'gpt-4o-mini' );
+function alochat_get_chat_model() {
+    if ( 'gpt' === alochat_get_engine() ) {
+        return get_option( 'alochat_openai_model', 'gpt-4o-mini' );
     }
-    return get_option( 'my_ai_chat_model_name', 'qwen2.5:1.5b' );
+    return get_option( 'alochat_model_name', 'qwen2.5:1.5b' );
 }
 
-function my_ai_chat_get_embed_model() {
-    if ( 'gpt' === my_ai_chat_get_engine() ) {
-        return get_option( 'my_ai_chat_openai_model_embed', 'text-embedding-3-small' );
+function alochat_get_embed_model() {
+    if ( 'gpt' === alochat_get_engine() ) {
+        return get_option( 'alochat_openai_model_embed', 'text-embedding-3-small' );
     }
-    return my_ai_chat_get_model_embed();
+    return alochat_get_model_embed();
 }
 
-function my_ai_chat_get_qdrant_url() {
-    return untrailingslashit( get_option( 'my_ai_chat_qdrant_api_url', 'http://127.0.0.1:6333' ) );
+function alochat_get_qdrant_url() {
+    return untrailingslashit( get_option( 'alochat_qdrant_api_url', 'http://127.0.0.1:6333' ) );
 }
 
-function my_ai_chat_get_collection_name() {
-    return get_option( 'my_ai_chat_qdrant_collection_name', 'wp_products_collection' );
+function alochat_get_collection_name() {
+    return get_option( 'alochat_qdrant_collection_name', 'wp_products_collection' );
 }
 
-function my_ai_chat_get_vector_size() {
-    return (int) get_option( 'my_ai_chat_embedding_vector_size', 768 );
+function alochat_get_vector_size() {
+    return (int) get_option( 'alochat_embedding_vector_size', 768 );
 }
 
-function my_ai_chat_get_model_embed() {
-    return get_option( 'my_ai_chat_model_embed', 'nomic-embed-text' );
+function alochat_get_model_embed() {
+    return get_option( 'alochat_model_embed', 'nomic-embed-text' );
 }
 
-function my_ai_chat_default_system_prompt() {
-    return __( "You are a strict and polite assistant-consultant in an online store. Your task is to answer user questions based on the provided product CONTEXT.\nLINK RULE: You must use the link EXACTLY as specified in the 'Link:' field. Do not modify it. Write the product name, and put the exact link in parentheses next to it.", 'my-ai-chat' );
+function alochat_default_system_prompt() {
+    return __( "You are a strict and polite assistant-consultant in an online store. Your task is to answer user questions based on the provided product CONTEXT.\nLINK RULE: You must use the link EXACTLY as specified in the 'Link:' field. Do not modify it. Write the product name, and put the exact link in parentheses next to it.", 'alochat' );
 }
 
-function my_ai_chat_default_context_template() {
-    return __( 'Use the following information about products and site pages to answer the question. If the context does not have the required product, say it is not in stock.', 'my-ai-chat' );
+function alochat_default_context_template() {
+    return __( 'Use the following information about products and site pages to answer the question. If the context does not have the required product, say it is not in stock.', 'alochat' );
 }
 
-function my_ai_chat_default_product_card_template() {
-    return __( "<strong>We have this product!</strong><br>\nProduct: {title}<br>\nPrice: {price}<br>\nLink: <a href=\"{permalink}\" target=\"_blank\">Go to product</a><br><br>", 'my-ai-chat' );
+function alochat_default_product_card_template() {
+    return __( "<strong>We have this product!</strong><br>\nProduct: {title}<br>\nPrice: {price}<br>\nLink: <a href=\"{permalink}\" target=\"_blank\">Go to product</a><br><br>", 'alochat' );
 }
 
 /**
  * Checks whether a specific model is installed in Ollama.
  */
-function my_ai_chat_check_ollama_model( $model_name ) {
-    $ollama_url = my_ai_chat_get_ollama_url();
+function alochat_check_ollama_model( $model_name ) {
+    $ollama_url = alochat_get_ollama_url();
     $tags_url = str_replace('/api/api', '/api', $ollama_url . '/tags');
 
     $response = wp_remote_get( $tags_url, array( 'timeout' => 5 ) );
@@ -131,10 +131,10 @@ function my_ai_chat_check_ollama_model( $model_name ) {
  * @param int        $timeout Request timeout in seconds.
  * @return array|WP_Error wp_remote_request() result.
  */
-function my_ai_chat_qdrant_request( $path, $method = 'GET', $body = null, $timeout = 10 ) {
+function alochat_qdrant_request( $path, $method = 'GET', $body = null, $timeout = 10 ) {
     $headers = array( 'Content-Type' => 'application/json' );
 
-    $api_key = trim( (string) get_option( 'my_ai_chat_qdrant_api_key', '' ) );
+    $api_key = trim( (string) get_option( 'alochat_qdrant_api_key', '' ) );
     if ( ! empty( $api_key ) ) {
         $headers['api-key'] = $api_key;
     }
@@ -148,7 +148,7 @@ function my_ai_chat_qdrant_request( $path, $method = 'GET', $body = null, $timeo
         $args['body'] = json_encode( $body );
     }
 
-    return wp_remote_request( my_ai_chat_get_qdrant_url() . $path, $args );
+    return wp_remote_request( alochat_get_qdrant_url() . $path, $args );
 }
 
 /**
@@ -157,35 +157,35 @@ function my_ai_chat_qdrant_request( $path, $method = 'GET', $body = null, $timeo
  * @param string $text Text to embed.
  * @return array|null Vector on success, null on failure.
  */
-function my_ai_chat_get_embedding( $text ) {
-    if ( 'gpt' === my_ai_chat_get_engine() ) {
-        $api_key = my_ai_chat_get_openai_api_key();
+function alochat_get_embedding( $text ) {
+    if ( 'gpt' === alochat_get_engine() ) {
+        $api_key = alochat_get_openai_api_key();
         if ( empty( $api_key ) ) {
-            my_ai_chat_log( 'AI Bot Error: OpenAI API key is not set.' );
+            alochat_log( 'AI Bot Error: OpenAI API key is not set.' );
             return null;
         }
 
-        $response = wp_remote_post( my_ai_chat_get_openai_base_url() . '/embeddings', array(
+        $response = wp_remote_post( alochat_get_openai_base_url() . '/embeddings', array(
             'headers' => array(
                 'Content-Type'  => 'application/json',
                 'Authorization' => 'Bearer ' . $api_key,
             ),
             'body'    => json_encode( array(
-                'model' => my_ai_chat_get_embed_model(),
+                'model' => alochat_get_embed_model(),
                 'input' => $text,
             ) ),
             'timeout' => 90,
         ) );
 
         if ( is_wp_error( $response ) ) {
-            my_ai_chat_log( 'AI Bot OpenAI Embeddings Error: ' . $response->get_error_message() );
+            alochat_log( 'AI Bot OpenAI Embeddings Error: ' . $response->get_error_message() );
             return null;
         }
 
         $code = wp_remote_retrieve_response_code( $response );
         $data = json_decode( wp_remote_retrieve_body( $response ), true );
         if ( 200 !== $code ) {
-            my_ai_chat_log( "AI Bot OpenAI Embeddings Error: Code {$code}. Response: " . substr( wp_remote_retrieve_body( $response ), 0, 500 ) );
+            alochat_log( "AI Bot OpenAI Embeddings Error: Code {$code}. Response: " . substr( wp_remote_retrieve_body( $response ), 0, 500 ) );
             return null;
         }
 
@@ -194,17 +194,17 @@ function my_ai_chat_get_embedding( $text ) {
     }
 
     // Ollama.
-    $response = wp_remote_post( my_ai_chat_get_ollama_url() . '/embeddings', array(
+    $response = wp_remote_post( alochat_get_ollama_url() . '/embeddings', array(
         'headers' => array( 'Content-Type' => 'application/json' ),
         'body'    => json_encode( array(
-            'model'  => my_ai_chat_get_embed_model(),
+            'model'  => alochat_get_embed_model(),
             'prompt' => $text,
         ) ),
         'timeout' => 90,
     ) );
 
     if ( is_wp_error( $response ) ) {
-        my_ai_chat_log( 'AI Bot Ollama Embeddings Error: ' . $response->get_error_message() );
+        alochat_log( 'AI Bot Ollama Embeddings Error: ' . $response->get_error_message() );
         return null;
     }
 
@@ -221,30 +221,30 @@ function my_ai_chat_get_embedding( $text ) {
  * @param string $user_content  User message (context + question).
  * @return string|WP_Error Answer text or WP_Error on failure.
  */
-function my_ai_chat_generate_answer( $system_prompt, $user_content ) {
+function alochat_generate_answer( $system_prompt, $user_content ) {
     $headers = array(
         'Content-Type' => 'application/json',
         'Accept'       => 'application/json',
     );
 
-    if ( 'gpt' === my_ai_chat_get_engine() ) {
-        $api_key = my_ai_chat_get_openai_api_key();
+    if ( 'gpt' === alochat_get_engine() ) {
+        $api_key = alochat_get_openai_api_key();
         if ( empty( $api_key ) ) {
-            return new WP_Error( 'my_ai_chat_no_api_key', __( 'The OpenAI API key is not set. Enter it on the AI Chat settings page.', 'my-ai-chat' ) );
+            return new WP_Error( 'alochat_no_api_key', __( 'The OpenAI API key is not set. Enter it on the AI Chat settings page.', 'alochat' ) );
         }
         $headers['Authorization'] = 'Bearer ' . $api_key;
-        $url = my_ai_chat_get_openai_base_url() . '/chat/completions';
+        $url = alochat_get_openai_base_url() . '/chat/completions';
     } else {
-        $url = my_ai_chat_get_ollama_base_url() . '/v1/chat/completions';
+        $url = alochat_get_ollama_base_url() . '/v1/chat/completions';
     }
 
     $request_body = array(
-        'model'       => my_ai_chat_get_chat_model(),
+        'model'       => alochat_get_chat_model(),
         'messages'    => array(
             array( 'role' => 'system', 'content' => $system_prompt ),
             array( 'role' => 'user',   'content' => $user_content ),
         ),
-        'temperature' => (float) get_option( 'my_ai_chat_temperature', '0.3' ),
+        'temperature' => (float) get_option( 'alochat_temperature', '0.3' ),
         'stream'      => false,
     );
 
@@ -255,34 +255,34 @@ function my_ai_chat_generate_answer( $system_prompt, $user_content ) {
     ) );
 
     if ( is_wp_error( $response ) ) {
-        my_ai_chat_log( 'AI Bot Chat Error: ' . $response->get_error_message() );
-        return new WP_Error( 'my_ai_chat_connection', __( 'Sorry, there was an error communicating with the neural network.', 'my-ai-chat' ) );
+        alochat_log( 'AI Bot Chat Error: ' . $response->get_error_message() );
+        return new WP_Error( 'alochat_connection', __( 'Sorry, there was an error communicating with the neural network.', 'alochat' ) );
     }
 
     $code = wp_remote_retrieve_response_code( $response );
     $body = wp_remote_retrieve_body( $response );
 
     if ( 200 !== $code ) {
-        my_ai_chat_log( "AI Bot Chat Error: Code {$code}. Response: " . substr( $body, 0, 500 ) );
+        alochat_log( "AI Bot Chat Error: Code {$code}. Response: " . substr( $body, 0, 500 ) );
         /* translators: %d: HTTP status code returned by the AI service. */
-        return new WP_Error( 'my_ai_chat_http', sprintf( __( 'AI engine error (code %d).', 'my-ai-chat' ), $code ) );
+        return new WP_Error( 'alochat_http', sprintf( __( 'AI engine error (code %d).', 'alochat' ), $code ) );
     }
 
     $data   = json_decode( $body, true );
     $answer = $data['choices'][0]['message']['content'] ?? null;
 
     if ( empty( $answer ) || ! is_string( $answer ) ) {
-        return new WP_Error( 'my_ai_chat_parse', __( 'Failed to parse the response from the model.', 'my-ai-chat' ) );
+        return new WP_Error( 'alochat_parse', __( 'Failed to parse the response from the model.', 'alochat' ) );
     }
 
     return trim( $answer );
 }
 
 // Plugin activation hook
-register_activation_hook( __FILE__, 'my_ai_chat_activate' );
+register_activation_hook( __FILE__, 'alochat_activate' );
 
-function my_ai_chat_activate() {
-    my_ai_chat_initialize_vector_db();
+function alochat_activate() {
+    alochat_initialize_vector_db();
 }
 
 /**
@@ -295,11 +295,11 @@ function my_ai_chat_activate() {
  *
  * @param bool $recreate_on_mismatch Recreate the collection when the vector size differs.
  */
-function my_ai_chat_initialize_vector_db( $recreate_on_mismatch = false ) {
-    $collection_path = '/collections/' . my_ai_chat_get_collection_name();
-    $expected_size   = my_ai_chat_get_vector_size();
+function alochat_initialize_vector_db( $recreate_on_mismatch = false ) {
+    $collection_path = '/collections/' . alochat_get_collection_name();
+    $expected_size   = alochat_get_vector_size();
 
-    $check_response = my_ai_chat_qdrant_request( $collection_path );
+    $check_response = alochat_qdrant_request( $collection_path );
     if ( ! is_wp_error( $check_response ) && wp_remote_retrieve_response_code( $check_response ) === 200 ) {
         $info         = json_decode( wp_remote_retrieve_body( $check_response ), true );
         $current_size = (int) ( $info['result']['config']['params']['vectors']['size'] ?? 0 );
@@ -308,8 +308,8 @@ function my_ai_chat_initialize_vector_db( $recreate_on_mismatch = false ) {
             return;
         }
 
-        my_ai_chat_log( "AI Bot: Vector size changed ({$current_size} -> {$expected_size}), recreating the Qdrant collection." );
-        my_ai_chat_qdrant_request( $collection_path, 'DELETE' );
+        alochat_log( "AI Bot: Vector size changed ({$current_size} -> {$expected_size}), recreating the Qdrant collection." );
+        alochat_qdrant_request( $collection_path, 'DELETE' );
     }
 
     $body = array(
@@ -319,19 +319,19 @@ function my_ai_chat_initialize_vector_db( $recreate_on_mismatch = false ) {
         )
     );
 
-    $response = my_ai_chat_qdrant_request( $collection_path, 'PUT', $body );
+    $response = alochat_qdrant_request( $collection_path, 'PUT', $body );
 
     if ( is_wp_error( $response ) ) {
-        my_ai_chat_log( 'AI RAG Bot Error: Failed to connect to Qdrant: ' . $response->get_error_message() );
+        alochat_log( 'AI RAG Bot Error: Failed to connect to Qdrant: ' . $response->get_error_message() );
     }
 }
 
 // Enqueue styles and scripts
-add_action( 'wp_enqueue_scripts', 'my_ai_chat_enqueue_assets' );
-function my_ai_chat_enqueue_assets() {
-    wp_enqueue_style( 'ai-chat-style', plugins_url( 'css/chat-style.css', __FILE__ ), array(), filemtime( plugin_dir_path( __FILE__ ) . 'css/chat-style.css' ) );
+add_action( 'wp_enqueue_scripts', 'alochat_enqueue_assets' );
+function alochat_enqueue_assets() {
+    wp_enqueue_style( 'alochat-style', plugins_url( 'css/chat-style.css', __FILE__ ), array(), filemtime( plugin_dir_path( __FILE__ ) . 'css/chat-style.css' ) );
 
-    $primary_color = get_option( 'my_ai_chat_primary_color', '#0073aa' );
+    $primary_color = get_option( 'alochat_primary_color', '#0073aa' );
     if ( empty( $primary_color ) ) {
         $primary_color = '#0073aa';
     }
@@ -341,19 +341,19 @@ function my_ai_chat_enqueue_assets() {
             --ai-chat-primary-color: " . esc_attr( $primary_color ) . ";
         }
     ";
-    wp_add_inline_style( 'ai-chat-style', $custom_css );
+    wp_add_inline_style( 'alochat-style', $custom_css );
 
-    wp_enqueue_script( 'ai-chat-script', plugins_url( 'js/chat-script.js', __FILE__ ), array(), filemtime( plugin_dir_path( __FILE__ ) . 'js/chat-script.js' ), true );
-    wp_localize_script( 'ai-chat-script', 'aiChatL10n', array(
-        'serverError'     => __( 'Server error', 'my-ai-chat' ),
-        'noAnswer'        => __( 'No answer.', 'my-ai-chat' ),
-        'connectionError' => __( 'Connection error with server.', 'my-ai-chat' ),
+    wp_enqueue_script( 'alochat-script', plugins_url( 'js/chat-script.js', __FILE__ ), array(), filemtime( plugin_dir_path( __FILE__ ) . 'js/chat-script.js' ), true );
+    wp_localize_script( 'alochat-script', 'aloChatL10n', array(
+        'serverError'     => __( 'Server error', 'alochat' ),
+        'noAnswer'        => __( 'No answer.', 'alochat' ),
+        'connectionError' => __( 'Connection error with server.', 'alochat' ),
     ) );
 }
 
 // Output HTML template in footer
-add_action( 'wp_footer', 'my_ai_chat_render_widget' );
-function my_ai_chat_render_widget() {
+add_action( 'wp_footer', 'alochat_render_widget' );
+function alochat_render_widget() {
     if ( file_exists( plugin_dir_path( __FILE__ ) . 'chat-template.php' ) ) {
         include plugin_dir_path( __FILE__ ) . 'chat-template.php';
     }
@@ -361,23 +361,23 @@ function my_ai_chat_render_widget() {
 
 // REST API endpoint
 add_action( 'rest_api_init', function () {
-    register_rest_route( 'aibot/v1', '/chat', array(
+    register_rest_route( 'alochat/v1', '/chat', array(
         'methods'             => 'POST',
-        'callback'            => 'my_ai_chat_rest_handle_message',
+        'callback'            => 'alochat_rest_handle_message',
         'permission_callback' => '__return_true',
     ) );
 } );
 
-function my_ai_chat_rest_handle_message( WP_REST_Request $request ) {
+function alochat_rest_handle_message( WP_REST_Request $request ) {
 
     $params = $request->get_json_params();
     $user_question = !empty($params['question']) ? sanitize_text_field($params['question']) : '';
 
     if ( empty( $user_question ) ) {
-        return new WP_REST_Response( array( 'answer' => __( 'Question is empty', 'my-ai-chat' ) ), 400 );
+        return new WP_REST_Response( array( 'answer' => __( 'Question is empty', 'alochat' ) ), 400 );
     }
 
-    $bot_answer = my_ai_chat_generate_rag_response( $user_question );
+    $bot_answer = alochat_generate_rag_response( $user_question );
     return new WP_REST_Response( array( 'answer' => $bot_answer ), 200 );
 }
 
@@ -385,10 +385,10 @@ function my_ai_chat_rest_handle_message( WP_REST_Request $request ) {
 // АВТОМАТИЧЕСКАЯ СИНХРОНИЗАЦИЯ (КРОН И ХУКИ)
 // ==========================================
 
-add_action( 'save_post', 'my_ai_chat_handle_post_save_schedule', 10, 3 );
-add_action( 'woocommerce_update_product', 'my_ai_chat_handle_product_save_schedule', 10, 1 );
+add_action( 'save_post', 'alochat_handle_post_save_schedule', 10, 3 );
+add_action( 'woocommerce_update_product', 'alochat_handle_product_save_schedule', 10, 1 );
 
-function my_ai_chat_handle_post_save_schedule( $post_id, $post, $update ) {
+function alochat_handle_post_save_schedule( $post_id, $post, $update ) {
     if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) return;
     if ( wp_is_post_revision( $post_id ) ) return;
     if ( ! $post || $post->post_status !== 'publish' ) return;
@@ -398,22 +398,22 @@ function my_ai_chat_handle_post_save_schedule( $post_id, $post, $update ) {
     $allowed_types = array( 'post', 'page' );
     if ( ! in_array( $post->post_type, $allowed_types ) ) return;
 
-    if ( ! wp_next_scheduled( 'my_ai_bot_index_single_post_cron', array( $post_id ) ) ) {
-        wp_schedule_single_event( time(), 'my_ai_bot_index_single_post_cron', array( $post_id ) );
+    if ( ! wp_next_scheduled( 'alochat_index_single_post_cron', array( $post_id ) ) ) {
+        wp_schedule_single_event( time(), 'alochat_index_single_post_cron', array( $post_id ) );
     }
 }
 
-function my_ai_chat_handle_product_save_schedule( $product_id ) {
+function alochat_handle_product_save_schedule( $product_id ) {
     $product = wc_get_product( $product_id );
     if ( ! $product || $product->get_status() !== 'publish' ) return;
 
-    if ( ! wp_next_scheduled( 'my_ai_bot_index_single_post_cron', array( $product_id ) ) ) {
-        wp_schedule_single_event( time(), 'my_ai_bot_index_single_post_cron', array( $product_id ) );
+    if ( ! wp_next_scheduled( 'alochat_index_single_post_cron', array( $product_id ) ) ) {
+        wp_schedule_single_event( time(), 'alochat_index_single_post_cron', array( $product_id ) );
     }
 }
 
-add_action( 'my_ai_bot_index_single_post_cron', 'my_ai_chat_execute_background_indexing' );
-function my_ai_chat_execute_background_indexing( $post_id ) {
+add_action( 'alochat_index_single_post_cron', 'alochat_execute_background_indexing' );
+function alochat_execute_background_indexing( $post_id ) {
     $post = get_post( $post_id );
     if ( ! $post || $post->post_status !== 'publish' ) return;
 
@@ -453,27 +453,27 @@ function my_ai_chat_execute_background_indexing( $post_id ) {
             $sku = $product->get_sku();
             $short_desc = wp_strip_all_tags( $product->get_short_description() );
 
-            $text_to_embed = __( 'Product', 'my-ai-chat' ) . ": {$title}. ";
-            if ( ! empty( $sku ) ) $text_to_embed .= __( 'SKU', 'my-ai-chat' ) . ": {$sku}. ";
-            $text_to_embed .= __( 'Categories', 'my-ai-chat' ) . ": {$categories}. " . __( 'Attributes', 'my-ai-chat' ) . ": {$attributes_string}. " . __( 'Price', 'my-ai-chat' ) . ": {$price}. ";
-            if ( ! empty( $short_desc ) ) $text_to_embed .= __( 'Short Description', 'my-ai-chat' ) . ": {$short_desc}. ";
-            $text_to_embed .= __( 'Description', 'my-ai-chat' ) . ": {$content}";
+            $text_to_embed = __( 'Product', 'alochat' ) . ": {$title}. ";
+            if ( ! empty( $sku ) ) $text_to_embed .= __( 'SKU', 'alochat' ) . ": {$sku}. ";
+            $text_to_embed .= __( 'Categories', 'alochat' ) . ": {$categories}. " . __( 'Attributes', 'alochat' ) . ": {$attributes_string}. " . __( 'Price', 'alochat' ) . ": {$price}. ";
+            if ( ! empty( $short_desc ) ) $text_to_embed .= __( 'Short Description', 'alochat' ) . ": {$short_desc}. ";
+            $text_to_embed .= __( 'Description', 'alochat' ) . ": {$content}";
 
         }
     } else {
-        $type_label = ( $post->post_type === 'page' ) ? __( 'Page', 'my-ai-chat' ) : __( 'Article', 'my-ai-chat' );
-        $text_to_embed = "{$type_label}: {$title}. " . __( 'Text', 'my-ai-chat' ) . ": {$content}";
+        $type_label = ( $post->post_type === 'page' ) ? __( 'Page', 'alochat' ) : __( 'Article', 'alochat' );
+        $text_to_embed = "{$type_label}: {$title}. " . __( 'Text', 'alochat' ) . ": {$content}";
     }
 
     if ( empty( $text_to_embed ) ) {
-        my_ai_chat_log( "AI Bot Cron Error: Empty embedding text (ID {$post_id})" );
+        alochat_log( "AI Bot Cron Error: Empty embedding text (ID {$post_id})" );
         return;
     }
 
-    $vector = my_ai_chat_get_embedding( $text_to_embed );
+    $vector = alochat_get_embedding( $text_to_embed );
 
     if ( ! is_array( $vector ) ) {
-        my_ai_chat_log( 'AI Bot Cron Error: Embedding engine returned no vector for ID ' . $post_id );
+        alochat_log( 'AI Bot Cron Error: Embedding engine returned no vector for ID ' . $post_id );
         return;
     }
 
@@ -492,25 +492,25 @@ function my_ai_chat_execute_background_indexing( $post_id ) {
         )
     );
 
-    $qdrant_response = my_ai_chat_qdrant_request( '/collections/' . my_ai_chat_get_collection_name() . '/points?wait=true', 'PUT', $qdrant_body, 15 );
+    $qdrant_response = alochat_qdrant_request( '/collections/' . alochat_get_collection_name() . '/points?wait=true', 'PUT', $qdrant_body, 15 );
 
     if ( is_wp_error( $qdrant_response ) ) {
-        my_ai_chat_log( "AI Bot Cron Qdrant Error for ID {$post_id}: " . $qdrant_response->get_error_message() );
+        alochat_log( "AI Bot Cron Qdrant Error for ID {$post_id}: " . $qdrant_response->get_error_message() );
     } else {
         $code = wp_remote_retrieve_response_code( $qdrant_response );
         if ( $code !== 200 ) {
             $body = wp_remote_retrieve_body( $qdrant_response );
-            my_ai_chat_log( "AI Bot Cron Qdrant Error: Code {$code} for ID {$post_id}. Response: {$body}" );
+            alochat_log( "AI Bot Cron Qdrant Error: Code {$code} for ID {$post_id}. Response: {$body}" );
         }
     }
 }
 
 // Auto-delete from vector DB when post deleted in WP
-add_action( 'wp_trash_post', 'my_ai_chat_delete_post_from_qdrant' );
-add_action( 'before_delete_post', 'my_ai_chat_delete_post_from_qdrant' );
-function my_ai_chat_delete_post_from_qdrant( $post_id ) {
-    my_ai_chat_qdrant_request(
-        '/collections/' . my_ai_chat_get_collection_name() . '/points/delete',
+add_action( 'wp_trash_post', 'alochat_delete_post_from_qdrant' );
+add_action( 'before_delete_post', 'alochat_delete_post_from_qdrant' );
+function alochat_delete_post_from_qdrant( $post_id ) {
+    alochat_qdrant_request(
+        '/collections/' . alochat_get_collection_name() . '/points/delete',
         'POST',
         array( 'points' => array( (int) $post_id ) )
     );
@@ -521,39 +521,39 @@ function my_ai_chat_delete_post_from_qdrant( $post_id ) {
 // ==========================================
 
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
-    WP_CLI::add_command( 'ai-bot', 'My_AI_Chat_CLI_Commands' );
+    WP_CLI::add_command( 'alochat', 'AloChat_CLI_Commands' );
 }
 
-class My_AI_Chat_CLI_Commands {
+class AloChat_CLI_Commands {
 
     public function index( $args, $assoc_args ) {
-        WP_CLI::line( __( 'Checking environment readiness...', 'my-ai-chat' ) );
+        WP_CLI::line( __( 'Checking environment readiness...', 'alochat' ) );
 
-        if ( 'gpt' === my_ai_chat_get_engine() ) {
-            if ( '' === my_ai_chat_get_openai_api_key() ) {
-                WP_CLI::error( __( 'Critical error: The OpenAI API key is not set. Enter it on the AI Chat settings page.', 'my-ai-chat' ) );
+        if ( 'gpt' === alochat_get_engine() ) {
+            if ( '' === alochat_get_openai_api_key() ) {
+                WP_CLI::error( __( 'Critical error: The OpenAI API key is not set. Enter it on the AI Chat settings page.', 'alochat' ) );
             }
         } else {
-            $embedding_model = my_ai_chat_get_embed_model();
-            $llm_model       = my_ai_chat_get_chat_model();
+            $embedding_model = alochat_get_embed_model();
+            $llm_model       = alochat_get_chat_model();
 
-            if ( ! my_ai_chat_check_ollama_model( $embedding_model ) ) {
+            if ( ! alochat_check_ollama_model( $embedding_model ) ) {
                 /* translators: 1: embedding model name, 2: embedding model name (for the ollama pull command). */
-                WP_CLI::error( sprintf( __( "Critical error: Embedding model '%1\$s' not found!\nRun: ollama pull %2\$s", 'my-ai-chat' ), $embedding_model, $embedding_model ) );
+                WP_CLI::error( sprintf( __( "Critical error: Embedding model '%1\$s' not found!\nRun: ollama pull %2\$s", 'alochat' ), $embedding_model, $embedding_model ) );
             }
-            if ( ! my_ai_chat_check_ollama_model( $llm_model ) ) {
+            if ( ! alochat_check_ollama_model( $llm_model ) ) {
                 /* translators: 1: LLM model name, 2: LLM model name (for the ollama pull command). */
-                WP_CLI::error( sprintf( __( "Critical error: Model '%1\$s' not found!\nRun: ollama pull %2\$s", 'my-ai-chat' ), $llm_model, $llm_model ) );
+                WP_CLI::error( sprintf( __( "Critical error: Model '%1\$s' not found!\nRun: ollama pull %2\$s", 'alochat' ), $llm_model, $llm_model ) );
             }
         }
 
-        WP_CLI::line( __( 'Checking/creating collection in Qdrant...', 'my-ai-chat' ) );
-        my_ai_chat_initialize_vector_db( true );
+        WP_CLI::line( __( 'Checking/creating collection in Qdrant...', 'alochat' ) );
+        alochat_initialize_vector_db( true );
 
         $batch_size = isset( $assoc_args['batch_size'] ) ? intval( $assoc_args['batch_size'] ) : 50;
         if ( $batch_size <= 0 ) $batch_size = 50;
 
-        WP_CLI::log( WP_CLI::colorize( '%B' . __( 'Starting bulk content indexing in Qdrant...', 'my-ai-chat' ) . '%n' ) );
+        WP_CLI::log( WP_CLI::colorize( '%B' . __( 'Starting bulk content indexing in Qdrant...', 'alochat' ) . '%n' ) );
 
         $query_args = array(
             'post_type'              => array( 'post', 'page', 'product' ),
@@ -569,11 +569,11 @@ class My_AI_Chat_CLI_Commands {
         $total_count    = count( $all_post_ids );
 
         if ( $total_count === 0 ) {
-            WP_CLI::error( __( 'No published items found for indexing.', 'my-ai-chat' ) );
+            WP_CLI::error( __( 'No published items found for indexing.', 'alochat' ) );
         }
 
-        WP_CLI::log( __( 'Items found for processing: ', 'my-ai-chat' ) . $total_count );
-        $progress = \WP_CLI\Utils\make_progress_bar( __( 'Indexing', 'my-ai-chat' ), $total_count );
+        WP_CLI::log( __( 'Items found for processing: ', 'alochat' ) . $total_count );
+        $progress = \WP_CLI\Utils\make_progress_bar( __( 'Indexing', 'alochat' ), $total_count );
         $batches = array_chunk( $all_post_ids, $batch_size );
 
         foreach ( $batches as $batch ) {
@@ -615,21 +615,21 @@ class My_AI_Chat_CLI_Commands {
                         $price = html_entity_decode( $price, ENT_QUOTES, 'UTF-8' );
                         $sku = $product->get_sku();
                         $short_desc = wp_strip_all_tags( $product->get_short_description() );
-                        $text_to_embed = __( 'Product', 'my-ai-chat' ) . ": {$title}. ";
-                        if ( ! empty( $sku ) ) $text_to_embed .= __( 'SKU', 'my-ai-chat' ) . ": {$sku}. ";
-                        $text_to_embed .= __( 'Categories', 'my-ai-chat' ) . ": {$categories}. " . __( 'Attributes', 'my-ai-chat' ) . ": {$attributes_string}. " . __( 'Price', 'my-ai-chat' ) . ": {$price}. ";
-                        if ( ! empty( $short_desc ) ) $text_to_embed .= __( 'Short Description', 'my-ai-chat' ) . ": {$short_desc}. ";
-                        $text_to_embed .= __( 'Description', 'my-ai-chat' ) . ": {$content}";
+                        $text_to_embed = __( 'Product', 'alochat' ) . ": {$title}. ";
+                        if ( ! empty( $sku ) ) $text_to_embed .= __( 'SKU', 'alochat' ) . ": {$sku}. ";
+                        $text_to_embed .= __( 'Categories', 'alochat' ) . ": {$categories}. " . __( 'Attributes', 'alochat' ) . ": {$attributes_string}. " . __( 'Price', 'alochat' ) . ": {$price}. ";
+                        if ( ! empty( $short_desc ) ) $text_to_embed .= __( 'Short Description', 'alochat' ) . ": {$short_desc}. ";
+                        $text_to_embed .= __( 'Description', 'alochat' ) . ": {$content}";
 
                     }
                 } else {
-                    $type_label = ( $post->post_type === 'page' ) ? __( 'Page', 'my-ai-chat' ) : __( 'Article', 'my-ai-chat' );
-                    $text_to_embed = "{$type_label}: {$title}. " . __( 'Text', 'my-ai-chat' ) . ": {$content}";
+                    $type_label = ( $post->post_type === 'page' ) ? __( 'Page', 'alochat' ) : __( 'Article', 'alochat' );
+                    $text_to_embed = "{$type_label}: {$title}. " . __( 'Text', 'alochat' ) . ": {$content}";
                 }
 
                 if ( empty( $text_to_embed ) ) { $progress->tick(); continue; }
 
-                $vector = my_ai_chat_get_embedding( $text_to_embed );
+                $vector = alochat_get_embedding( $text_to_embed );
                 if ( ! is_array( $vector ) ) { $progress->tick(); continue; }
 
                 $qdrant_body = array(
@@ -647,17 +647,17 @@ class My_AI_Chat_CLI_Commands {
                     )
                 );
 
-                $qdrant_response = my_ai_chat_qdrant_request( '/collections/' . my_ai_chat_get_collection_name() . '/points?wait=true', 'PUT', $qdrant_body );
+                $qdrant_response = alochat_qdrant_request( '/collections/' . alochat_get_collection_name() . '/points?wait=true', 'PUT', $qdrant_body );
 
                 if ( is_wp_error( $qdrant_response ) ) {
                     /* translators: %d: post ID. */
-                    WP_CLI::warning( "\n" . sprintf( __( 'cURL error for ID %d: ', 'my-ai-chat' ), $post_id ) . $qdrant_response->get_error_message() );
+                    WP_CLI::warning( "\n" . sprintf( __( 'cURL error for ID %d: ', 'alochat' ), $post_id ) . $qdrant_response->get_error_message() );
                 } else {
                     $code = wp_remote_retrieve_response_code( $qdrant_response );
                     if ( $code !== 200 ) {
                         $body = wp_remote_retrieve_body( $qdrant_response );
                         /* translators: 1: HTTP status code returned by Qdrant, 2: post ID. */
-                        WP_CLI::warning( "\n" . sprintf( __( 'Qdrant returned code %1$d for ID %2$d. Response: ', 'my-ai-chat' ), $code, $post_id ) . $body );
+                        WP_CLI::warning( "\n" . sprintf( __( 'Qdrant returned code %1$d for ID %2$d. Response: ', 'alochat' ), $code, $post_id ) . $body );
                     }
                 }
 
@@ -667,18 +667,18 @@ class My_AI_Chat_CLI_Commands {
         }
 
         $progress->finish();
-        WP_CLI::success( __( 'Indexing completed successfully!', 'my-ai-chat' ) );
+        WP_CLI::success( __( 'Indexing completed successfully!', 'alochat' ) );
     }
 
     public function search( $args, $assoc_args ) {
         if ( empty( $args[0] ) ) {
-            WP_CLI::error( __( 'You forgot to specify a search query.', 'my-ai-chat' ) );
+            WP_CLI::error( __( 'You forgot to specify a search query.', 'alochat' ) );
         }
         $query_text = $args[0];
-        WP_CLI::log( __( 'Searching: ', 'my-ai-chat' ) . $query_text );
-        $results = my_ai_chat_search_similar_content( $query_text, 3 );
+        WP_CLI::log( __( 'Searching: ', 'alochat' ) . $query_text );
+        $results = alochat_search_similar_content( $query_text, 3 );
         if ( empty( $results ) ) {
-            WP_CLI::error( __( 'Nothing found.', 'my-ai-chat' ) );
+            WP_CLI::error( __( 'Nothing found.', 'alochat' ) );
         }
         foreach ( $results as $item ) {
             WP_CLI::log( sprintf( "- [ID %d] %s (Score: %0.4f)", $item['id'], $item['title'], $item['score'] ) );
@@ -687,23 +687,23 @@ class My_AI_Chat_CLI_Commands {
 
     public function ask( $args, $assoc_args ) {
         $question = $args[0];
-        WP_CLI::log( __( 'Question to bot: ', 'my-ai-chat' ) . $question );
-        $response = my_ai_chat_generate_rag_response( $question );
-        WP_CLI::log( "\n================ " . __( 'BOT ANSWER', 'my-ai-chat' ) . " ================" );
+        WP_CLI::log( __( 'Question to bot: ', 'alochat' ) . $question );
+        $response = alochat_generate_rag_response( $question );
+        WP_CLI::log( "\n================ " . __( 'BOT ANSWER', 'alochat' ) . " ================" );
         WP_CLI::log( $response );
         WP_CLI::log( "============================================" );
     }
 }
 
-function my_ai_chat_search_similar_content( $query_text, $limit = 3 ) {
+function alochat_search_similar_content( $query_text, $limit = 3 ) {
     if ( empty( $query_text ) ) return array();
 
-    $query_vector = my_ai_chat_get_embedding( $query_text );
+    $query_vector = alochat_get_embedding( $query_text );
     if ( ! is_array( $query_vector ) ) return array();
 
     $qdrant_body = array( 'vector' => $query_vector, 'limit' => $limit, 'with_payload' => true );
 
-    $qdrant_response = my_ai_chat_qdrant_request( '/collections/' . my_ai_chat_get_collection_name() . '/points/search', 'POST', $qdrant_body );
+    $qdrant_response = alochat_qdrant_request( '/collections/' . alochat_get_collection_name() . '/points/search', 'POST', $qdrant_body );
 
     if ( is_wp_error( $qdrant_response ) ) return array();
 
@@ -715,26 +715,26 @@ function my_ai_chat_search_similar_content( $query_text, $limit = 3 ) {
         $found_items[] = array(
             'id'    => $point['id'],
             'score' => $point['score'],
-            'title' => $point['payload']['title'] ?? __( 'No title', 'my-ai-chat' ),
+            'title' => $point['payload']['title'] ?? __( 'No title', 'alochat' ),
             'text'  => $point['payload']['text'] ?? '',
         );
     }
     return $found_items;
 }
 
-function my_ai_chat_generate_rag_response( $user_question ) {
+function alochat_generate_rag_response( $user_question ) {
     if ( ! function_exists( 'wc_get_product' ) && function_exists( 'WC' ) ) {
         include_once WP_PLUGIN_DIR . '/woocommerce/woocommerce.php';
     }
 
-    $similar_items = my_ai_chat_search_similar_content( $user_question, 3 );
+    $similar_items = alochat_search_similar_content( $user_question, 3 );
 
     if ( empty( $similar_items ) ) {
-        return __( 'Sorry, I found no information for your query on the site.', 'my-ai-chat' );
+        return __( 'Sorry, I found no information for your query on the site.', 'alochat' );
     }
 
    $context = '';
-   $use_system_answer = get_option( 'my_ai_chat_use_system_answer', '1' );
+   $use_system_answer = get_option( 'alochat_use_system_answer', '1' );
 
     if ( ! $use_system_answer ) {
         foreach ( $similar_items as $item ) {
@@ -751,8 +751,8 @@ function my_ai_chat_generate_rag_response( $user_question ) {
                     $title = get_the_title( $post_id );
 
                     $card_template = get_option(
-                        'my_ai_chat_product_card_template',
-                        my_ai_chat_default_product_card_template()
+                        'alochat_product_card_template',
+                        alochat_default_product_card_template()
                     );
                     $context .= str_replace(
                         [ '{title}', '{price}', '{permalink}' ],
@@ -763,7 +763,7 @@ function my_ai_chat_generate_rag_response( $user_question ) {
             }
         }
 
-        return ! empty( $context ) ? $context : __( 'Sorry, nothing was found.', 'my-ai-chat' );
+        return ! empty( $context ) ? $context : __( 'Sorry, nothing was found.', 'alochat' );
     } else {
 
         $context_text = "";
@@ -774,17 +774,17 @@ function my_ai_chat_generate_rag_response( $user_question ) {
             $payload_text = $item['text'] ?? $item['title'];
 
             /* translators: %s: permalink of the document or product. */
-            $context_text .= sprintf( __( 'Document/Product (Link: %s):', 'my-ai-chat' ), $permalink ) . "\n{$payload_text}\n\n";
+            $context_text .= sprintf( __( 'Document/Product (Link: %s):', 'alochat' ), $permalink ) . "\n{$payload_text}\n\n";
         }
 
-        $system_prompt    = get_option( 'my_ai_chat_system_prompt', my_ai_chat_default_system_prompt() );
-        $context_template = get_option( 'my_ai_chat_context_template', my_ai_chat_default_context_template() );
+        $system_prompt    = get_option( 'alochat_system_prompt', alochat_default_system_prompt() );
+        $context_template = get_option( 'alochat_context_template', alochat_default_context_template() );
 
         $user_content = $context_template . "\n\n" .
-                        __( 'Site context:', 'my-ai-chat' ) . "\n{$context_text}\n" .
-                        __( 'User question:', 'my-ai-chat' ) . " {$user_question}";
+                        __( 'Site context:', 'alochat' ) . "\n{$context_text}\n" .
+                        __( 'User question:', 'alochat' ) . " {$user_question}";
 
-        $answer = my_ai_chat_generate_answer( $system_prompt, $user_content );
+        $answer = alochat_generate_answer( $system_prompt, $user_content );
 
         if ( is_wp_error( $answer ) ) {
             return $answer->get_error_message();
@@ -794,61 +794,61 @@ function my_ai_chat_generate_rag_response( $user_question ) {
     }
 }
 
-add_action( 'wp_ajax_ai_chat_message', 'my_ai_chat_ajax_handler' );
-add_action( 'wp_ajax_nopriv_ai_chat_message', 'my_ai_chat_ajax_handler' );
+add_action( 'wp_ajax_ai_chat_message', 'alochat_ajax_handler' );
+add_action( 'wp_ajax_nopriv_ai_chat_message', 'alochat_ajax_handler' );
 
-function my_ai_chat_ajax_handler() {
+function alochat_ajax_handler() {
     check_ajax_referer( 'ai_chat_nonce', 'nonce' );
 
     $message = isset( $_POST['message'] ) ? sanitize_text_field( wp_unslash( $_POST['message'] ) ) : '';
 
     if ( empty( $message ) ) {
-        wp_send_json_error( __( 'Empty message', 'my-ai-chat' ) );
+        wp_send_json_error( __( 'Empty message', 'alochat' ) );
     }
 
-    $response = my_ai_chat_generate_rag_response( $message );
+    $response = alochat_generate_rag_response( $message );
 
     wp_send_json_success( $response );
 }
 
 // Register admin menu
-add_action( 'admin_menu', 'my_ai_chat_options_page' );
-function my_ai_chat_options_page() {
+add_action( 'admin_menu', 'alochat_options_page' );
+function alochat_options_page() {
     add_menu_page(
-        'My AI Chat Settings',
+        'AloChat Settings',
         'AI Chat',
         'manage_options',
-        'my_ai_chat',
-        'my_ai_chat_options_page_html',
+        'alochat',
+        'alochat_options_page_html',
         'dashicons-format-status',
         40
     );
 }
 
 // Register options in WordPress database
-add_action( 'admin_init', 'my_ai_chat_register_settings' );
-function my_ai_chat_register_settings() {
-    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_system_prompt', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_textarea_field' ) );
-    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_context_template', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_textarea_field' ) );
-    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_ollama_url', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_url' ) );
-    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_model_name', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
-    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_temperature', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
-    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_qdrant_api_url', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_url' ) );
-    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_qdrant_collection_name', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
-    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_embedding_vector_size', array( 'type' => 'integer', 'sanitize_callback' => 'absint' ) );
-    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_engine', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
-    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_openai_api_key', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
-    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_openai_model', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
-    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_openai_model_embed', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
-    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_qdrant_api_key', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
-    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_model_embed', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
-    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_use_system_answer', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
-    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_product_card_template', array( 'type' => 'string', 'sanitize_callback' => 'wp_kses_post' ) );
-    register_setting( 'my_ai_chat_settings_group', 'my_ai_chat_primary_color', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_hex_color' ) );
+add_action( 'admin_init', 'alochat_register_settings' );
+function alochat_register_settings() {
+    register_setting( 'alochat_settings_group', 'alochat_system_prompt', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_textarea_field' ) );
+    register_setting( 'alochat_settings_group', 'alochat_context_template', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_textarea_field' ) );
+    register_setting( 'alochat_settings_group', 'alochat_ollama_url', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_url' ) );
+    register_setting( 'alochat_settings_group', 'alochat_model_name', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
+    register_setting( 'alochat_settings_group', 'alochat_temperature', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
+    register_setting( 'alochat_settings_group', 'alochat_qdrant_api_url', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_url' ) );
+    register_setting( 'alochat_settings_group', 'alochat_qdrant_collection_name', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
+    register_setting( 'alochat_settings_group', 'alochat_embedding_vector_size', array( 'type' => 'integer', 'sanitize_callback' => 'absint' ) );
+    register_setting( 'alochat_settings_group', 'alochat_engine', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
+    register_setting( 'alochat_settings_group', 'alochat_openai_api_key', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
+    register_setting( 'alochat_settings_group', 'alochat_openai_model', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
+    register_setting( 'alochat_settings_group', 'alochat_openai_model_embed', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
+    register_setting( 'alochat_settings_group', 'alochat_qdrant_api_key', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
+    register_setting( 'alochat_settings_group', 'alochat_model_embed', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
+    register_setting( 'alochat_settings_group', 'alochat_use_system_answer', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_text_field' ) );
+    register_setting( 'alochat_settings_group', 'alochat_product_card_template', array( 'type' => 'string', 'sanitize_callback' => 'wp_kses_post' ) );
+    register_setting( 'alochat_settings_group', 'alochat_primary_color', array( 'type' => 'string', 'sanitize_callback' => 'sanitize_hex_color' ) );
 }
 
 // Render settings page via view.php
-function my_ai_chat_options_page_html() {
+function alochat_options_page_html() {
     if ( ! current_user_can( 'manage_options' ) ) {
         return;
     }
@@ -856,20 +856,20 @@ function my_ai_chat_options_page_html() {
 }
 
 // Handle mass indexing button click
-add_action( 'admin_init', 'my_ai_chat_handle_mass_indexing_button' );
+add_action( 'admin_init', 'alochat_handle_mass_indexing_button' );
 
-function my_ai_chat_handle_mass_indexing_button() {
+function alochat_handle_mass_indexing_button() {
     if ( ! isset( $_POST['ai_bot_start_mass_index'] ) ) {
         return;
     }
 
     if ( ! check_admin_referer( 'ai_bot_mass_index_action', 'ai_bot_nonce' ) || ! current_user_can( 'manage_options' ) ) {
-        wp_die( esc_html__( 'You do not have sufficient permissions to perform this action.', 'my-ai-chat' ) );
+        wp_die( esc_html__( 'You do not have sufficient permissions to perform this action.', 'alochat' ) );
     }
 
     // Make sure the collection exists and matches the configured vector size
     // (recreates it after an engine/model change; a fresh index follows anyway).
-    my_ai_chat_initialize_vector_db( true );
+    alochat_initialize_vector_db( true );
 
     $args = array(
         'post_type'      => array( 'post', 'page', 'product' ),
@@ -883,8 +883,8 @@ function my_ai_chat_handle_mass_indexing_button() {
     if ( ! empty( $all_post_ids ) ) {
         $count = 0;
         foreach ( $all_post_ids as $post_id ) {
-            if ( ! wp_next_scheduled( 'my_ai_bot_index_single_post_cron', array( $post_id ) ) ) {
-                wp_schedule_single_event( time() + $count, 'my_ai_bot_index_single_post_cron', array( $post_id ) );
+            if ( ! wp_next_scheduled( 'alochat_index_single_post_cron', array( $post_id ) ) ) {
+                wp_schedule_single_event( time() + $count, 'alochat_index_single_post_cron', array( $post_id ) );
                 $count++;
             }
         }
@@ -894,7 +894,7 @@ function my_ai_chat_handle_mass_indexing_button() {
                  wp_kses_post(
                      sprintf(
                          /* translators: %d: number of scheduled items. */
-                         __( '<strong>AI Bot:</strong> Successfully scheduled indexing for %d objects. Tasks are running in the background.', 'my-ai-chat' ),
+                         __( '<strong>AI Bot:</strong> Successfully scheduled indexing for %d objects. Tasks are running in the background.', 'alochat' ),
                          (int) $count
                      )
                  ) .
@@ -903,7 +903,7 @@ function my_ai_chat_handle_mass_indexing_button() {
     } else {
         add_action( 'admin_notices', function() {
             echo '<div class="notice notice-warning is-dismissible"><p>' .
-                 wp_kses_post( __( '<strong>AI Bot:</strong> No content found for indexing.', 'my-ai-chat' ) ) .
+                 wp_kses_post( __( '<strong>AI Bot:</strong> No content found for indexing.', 'alochat' ) ) .
                  '</p></div>';
         });
     }

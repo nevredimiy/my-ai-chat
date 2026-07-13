@@ -1,4 +1,4 @@
-=== My AI Chat ===
+=== AloChat ===
 Contributors: artemlitvinov
 Tags: ai, chatbot, rag, ollama, woocommerce
 Requires at least: 6.0
@@ -12,7 +12,7 @@ AI chatbot for WordPress and WooCommerce. Answers questions from your site conte
 
 == Description ==
 
-My AI Chat adds an AI-powered chat widget to your site that answers visitor questions based on your own content: WooCommerce products, posts, and pages. It implements a full Retrieval-Augmented Generation (RAG) pipeline with a choice of two AI engines:
+AloChat adds an AI-powered chat widget to your site that answers visitor questions based on your own content: WooCommerce products, posts, and pages. It implements a full Retrieval-Augmented Generation (RAG) pipeline with a choice of two AI engines:
 
 * **Ollama (self-hosted, free)** — everything runs on your own infrastructure; no data leaves your servers and no paid APIs are required.
 * **OpenAI API** — enter your API key and the plugin uses OpenAI models for embeddings and chat answers; no local AI server needed.
@@ -34,10 +34,10 @@ The vector database can be a self-hosted Qdrant instance or a managed **Qdrant C
 * Semantic (vector) search over products, posts, and pages.
 * WooCommerce support: product SKU, price, categories, and attributes are indexed.
 * Automatic re-indexing when content is created, updated, or deleted (via WP-Cron).
-* Bulk indexing from the admin page or via WP-CLI (`wp ai-bot index`).
+* Bulk indexing from the admin page or via WP-CLI (`wp alochat index`).
 * Configurable system prompt, context template, and product card template.
 * Optional "no-AI" mode: the bot replies with product cards only, without LLM generation.
-* WP-CLI commands for testing: `wp ai-bot search "query"` and `wp ai-bot ask "question"`.
+* WP-CLI commands for testing: `wp alochat search "query"` and `wp alochat ask "question"`.
 * Translation-ready (Ukrainian and Russian translations included).
 
 == External services ==
@@ -85,10 +85,10 @@ Depending on your configuration, this plugin connects to the following services.
 
 **Then:**
 
-1. Upload the plugin files to `/wp-content/plugins/my-ai-chat`, or install it through the WordPress plugins screen.
+1. Upload the plugin files to `/wp-content/plugins/alochat`, or install it through the WordPress plugins screen.
 2. Activate the plugin through the "Plugins" screen in WordPress.
 3. Go to the "AI Chat" admin menu, choose the AI engine, and enter the URLs / API keys. For OpenAI set the vector size to 1536 (for `text-embedding-3-small`).
-4. Click "Start Re-indexing" to index your existing content (or run `wp ai-bot index` via WP-CLI).
+4. Click "Start Re-indexing" to index your existing content (or run `wp alochat index` via WP-CLI).
 
 == Frequently Asked Questions ==
 

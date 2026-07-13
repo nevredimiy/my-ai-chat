@@ -1,9 +1,9 @@
-# Ukrainian Translation for My Custom AI RAG Bot
+# Ukrainian Translation for AloChat
 # Copyright (C) 2026
-# This file is distributed under the same license as the My Custom AI RAG Bot plugin.
+# This file is distributed under the same license as the AloChat plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: My Custom AI RAG Bot 1.1\n"
+"Project-Id-Version: AloChat 1.1\n"
 "POT-Creation-Date: 2026-06-30\n"
 "PO-Revision-Date: 2026-06-30\n"
 "MIME-Version: 1.0\n"

@@ -2,19 +2,19 @@
 
 <div id="ai-chat-widget" class="collapsed">
     <div id="ai-chat-header">
-        <span><?php esc_html_e( 'AI Assistant', 'my-ai-chat' ); ?></span>
-        <button id="ai-chat-minimize" aria-label="<?php esc_attr_e( 'Minimize', 'my-ai-chat' ); ?>">&times;</button>
+        <span><?php esc_html_e( 'AI Assistant', 'alochat' ); ?></span>
+        <button id="ai-chat-minimize" aria-label="<?php esc_attr_e( 'Minimize', 'alochat' ); ?>">&times;</button>
     </div>
     <div id="ai-chat-messages">
-        <div class="ai-message bot"><?php esc_html_e( 'Hello! Ask me a question about the site content and products.', 'my-ai-chat' ); ?></div>
+        <div class="ai-message bot"><?php esc_html_e( 'Hello! Ask me a question about the site content and products.', 'alochat' ); ?></div>
     </div>
     <div id="ai-chat-input-area">
-        <input type="text" id="ai-chat-input" placeholder="<?php esc_attr_e( 'Enter your question...', 'my-ai-chat' ); ?>" />
-        <button id="ai-chat-send"><?php esc_html_e( 'Send', 'my-ai-chat' ); ?></button>
+        <input type="text" id="ai-chat-input" placeholder="<?php esc_attr_e( 'Enter your question...', 'alochat' ); ?>" />
+        <button id="ai-chat-send"><?php esc_html_e( 'Send', 'alochat' ); ?></button>
     </div>
 </div>
 
-<div id="ai-chat-toggle" title="<?php esc_attr_e( 'Open chat', 'my-ai-chat' ); ?>">
+<div id="ai-chat-toggle" title="<?php esc_attr_e( 'Open chat', 'alochat' ); ?>">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
         <path d="M12 2C6.477 2 2 6.13 2 11.2c0 2.68 1.25 5.09 3.25 6.78-.13.94-.65 2.85-1.57 3.96-.09.11-.08.27.02.37.07.07.17.1.26.07 2.1-.64 4.13-1.63 5.49-2.38 1 .25 2.06.37 3.15.37 5.523 0 10-4.13 10-9.2S17.523 2 12 2zm0 15.6c-.95 0-1.88-.11-2.77-.32-.19-.04-.39 0-.54.12-1.07.8-2.61 1.63-4.23 2.15.65-1 1.07-2.43 1.21-3.41.03-.22-.05-.43-.22-.57C3.76 14.19 3 12.35 3 10.4 3 6.32 7.03 3 12 3s9 3.32 9 7.4-4.03 7.4-9 7.4z"/>
     </svg>
